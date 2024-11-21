@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sappi - New Product Release Form</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input[type="text"], select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .checkbox-group {
+            margin: 10px 0;
+        }
+        .submit-button {
+            background-color: #005587;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .submit-button:hover {
+            background-color: #004470;
+        }
+        .admin-panel {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .status-pending {
+            color: orange;
+        }
+        .status-approved {
+            color: green;
+        }
+        .status-completed {
+            color: blue;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Sappi - Agents Release Form</h1>
+        <h2>Introduction of New Products - Werk Alfeld</h2>
+    </div>
+
+    <form id="releaseForm">
+        <div class="form-section">
+            <h3>Basic Information</h3>
+            <div class="form-group">
+                <label>Requesting Department:</label>
+                <select id="department" required>
+                    <option value="">Select department</option>
+                    <!-- Add departments -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Product/Trade Name:</label>
+                <input type="text" id="productName" required>
+            </div>
+
+            <div class="form-group">
+                <label>Chemical Characterization:</label>
+                <input type="text" id="chemicalChar">
+            </div>
+
+            <div class="form-group">
+                <label>Mat.-Nr. (ECR. Introduction):</label>
+                <input type="text" id="matNr">
+            </div>
+
+            <div class="form-group">
+                <label>Product Group:</label>
+                <select id="productGroup" required>
+                    <option value="">Select product group</option>
+                    <!-- Add groups -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Rating Class:</label>
+                <select id="ratingClass">
+                    <option value="">Select rating class</option>
+                    <!-- Add classes -->
+                </select>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Product Details</h3>
+            <div class="form-group">
+                <label>Substance Assignment:</label>
+                <select id="substanceAssignment" multiple>
+                    <option value="sm">SM formulation-independent</option>
+                    <option value="pm">PM formulation-independent</option>
+                    <option value="ut">UT excipients</option>
+                    <option value="zf">ZF pre-sorting</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Goal of Introduction / Reason for Change:</label>
+                <textarea id="goal" rows="4"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Manufacturer/Supplier:</label>
+                <input type="text" id="manufacturer">
+            </div>
+
+            <div class="form-group">
+                <label>Product Information:</label>
+                <input type="text" id="productInfo" placeholder="Solids content %, active ingredient content %, density kg/m³">
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Safety & Compliance</h3>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="safetyDataSheet"> Safety Data Sheet Available
+                </label>
+            </div>
+
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="productQuestionnaire"> Product Questionnaire Required
+                </label>
+            </div>
+
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="hazardousSubstances"> Hazardous Substances Questionnaire Required
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>WGK Classification:</label>
+                <input type="text" id="wgk">
+            </div>
+        </div>
+
+        <button type="submit" class="submit-button">Submit for Review</button>
+    </form>
+
+    <div id="formStatus"></div>
+
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCdSgohwFoiRjyiHntEVCnsZOof_wtuGck",
+            authDomain: "stacks-companion-68225.firebaseapp.com",
+            projectId: "stacks-companion-68225",
+            storageBucket: "stacks-companion-68225.appspot.com",
+            messagingSenderId: "1011290604695",
+            appId: "1:1011290604695:web:461e7a9df4855fc81055d2"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Get form ID and status from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const formId = urlParams.get('id');
+        const isAdmin = urlParams.get('admin') === 'true';
+
+        // Function to create new form
+        async function createNewForm(productName, reviewers) {
+            try {
+                const formRef = await db.collection('forms').add({
+                    status: 'pending',
+                    productName: productName,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    reviewers: reviewers,
+                    formData: {},
+                    signatures: {}
+                });
+                
+                return formRef.id;
+            } catch (error) {
+                console.error("Error creating form:", error);
+                throw error;
+            }
+        }
+
+        // Function to load existing form
+        async function loadForm(formId) {
+            try {
+                const doc = await db.collection('forms').doc(formId).get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    // Populate form fields
+                    Object.keys(data.formData).forEach(key => {
+                        const element = document.getElementById(key);
+                        if (element) {
+                            if (element.type === 'checkbox') {
+                                element.checked = data.formData[key];
+                            } else {
+                                element.value = data.formData[key];
+                            }
+                        }
+                    });
+
+                    // Show/hide admin controls
+                    if (isAdmin) {
+                        document.getElementById('adminControls').style.display = 'block';
+                    }
+
+                    // Update form status display
+                    updateStatusDisplay(data.status);
+                }
+            } catch (error) {
+                console.error("Error loading form:", error);
+            }
+        }
+
+        // Function to update status display
+        function updateStatusDisplay(status) {
+            const statusElement = document.getElementById('formStatus');
+            statusElement.textContent = `Status: ${status.toUpperCase()}`;
+            statusElement.className = `status-${status}`;
+        }
+
+        // Handle form submission
+        document.getElementById('releaseForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                department: document.getElementById('department').value,
+                productName: document.getElementById('productName').value,
+                chemicalChar: document.getElementById('chemicalChar').value,
+                matNr: document.getElementById('matNr').value,
+                productGroup: document.getElementById('productGroup').value,
+                ratingClass: document.getElementById('ratingClass').value,
+                goal: document.getElementById('goal').value,
+                manufacturer: document.getElementById('manufacturer').value,
+                productInfo: document.getElementById('productInfo').value,
+                safetyDataSheet: document.getElementById('safetyDataSheet').checked,
+                productQuestionnaire: document.getElementById('productQuestionnaire').checked,
+                hazardousSubstances: document.getElementById('hazardousSubstances').checked,
+                wgk: document.getElementById('wgk').value,
+                submittedAt: new Date().toISOString()
+            };
+
+            try {
+                if (formId) {
+                    await db.collection('forms').doc(formId).update({
+                        formData: formData,
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    alert('Form updated successfully!');
+                } else {
+                    alert('Error: No form ID provided');
+                }
+            } catch (error) {
+                console.error("Error saving form:", error);
+                alert('Error submitting form. Please try again.');
+            }
+        });
+
+        // Add status controls for admin
+        if (isAdmin) {
+            const adminControls = document.createElement('div');
+            adminControls.id = 'adminControls';
+            adminControls.innerHTML = `
+                <div class="admin-panel">
+                    <h3>Admin Controls</h3>
+                    <button onclick="updateFormStatus('approved')">Mark as Approved</button>
+                    <button onclick="updateFormStatus('completed')">Mark as Completed</button>
+                </div>
+            `;
+            document.body.appendChild(adminControls);
+        }
+
+        // Function to update form status
+        async function updateFormStatus(status) {
+            try {
+                await db.collection('forms').doc(formId).update({
+                    status: status,
+                    statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                updateStatusDisplay(status);
+                alert(`Form marked as ${status}`);
+            } catch (error) {
+                console.error("Error updating status:", error);
+                alert('Error updating form status');
+            }
+        }
+
+        // Load form if ID exists
+        if (formId) {
+            loadForm(formId);
+        }
+    </script>
+</body>
+</html>
