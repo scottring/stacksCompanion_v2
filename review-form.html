@@ -51,21 +51,6 @@
         .submit-button:hover {
             background-color: #004470;
         }
-        .admin-panel {
-            margin-top: 20px;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .status-pending {
-            color: orange;
-        }
-        .status-approved {
-            color: green;
-        }
-        .status-completed {
-            color: blue;
-        }
     </style>
 </head>
 <body>
@@ -174,8 +159,6 @@
         <button type="submit" class="submit-button">Submit for Review</button>
     </form>
 
-    <div id="formStatus"></div>
-
     <script>
         // Initialize Firebase
         const firebaseConfig = {
@@ -190,70 +173,34 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Get form ID and status from URL
+        // Get form ID from URL
         const urlParams = new URLSearchParams(window.location.search);
         const formId = urlParams.get('id');
-        const isAdmin = urlParams.get('admin') === 'true';
 
-        // Function to create new form
-        async function createNewForm(productName, reviewers) {
-            try {
-                const formRef = await db.collection('forms').add({
-                    status: 'pending',
-                    productName: productName,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    reviewers: reviewers,
-                    formData: {},
-                    signatures: {}
-                });
-                
-                return formRef.id;
-            } catch (error) {
-                console.error("Error creating form:", error);
-                throw error;
-            }
-        }
-
-        // Function to load existing form
-        async function loadForm(formId) {
-            try {
-                const doc = await db.collection('forms').doc(formId).get();
-                if (doc.exists) {
-                    const data = doc.data();
-                    // Populate form fields
-                    Object.keys(data.formData).forEach(key => {
-                        const element = document.getElementById(key);
-                        if (element) {
-                            if (element.type === 'checkbox') {
-                                element.checked = data.formData[key];
-                            } else {
-                                element.value = data.formData[key];
+        // Load form data if exists
+        if (formId) {
+            db.collection('forms').doc(formId).get()
+                .then(doc => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        // Populate form fields
+                        Object.keys(data).forEach(key => {
+                            const element = document.getElementById(key);
+                            if (element) {
+                                if (element.type === 'checkbox') {
+                                    element.checked = data[key];
+                                } else {
+                                    element.value = data[key];
+                                }
                             }
-                        }
-                    });
-
-                    // Show/hide admin controls
-                    if (isAdmin) {
-                        document.getElementById('adminControls').style.display = 'block';
+                        });
                     }
-
-                    // Update form status display
-                    updateStatusDisplay(data.status);
-                }
-            } catch (error) {
-                console.error("Error loading form:", error);
-            }
-        }
-
-        // Function to update status display
-        function updateStatusDisplay(status) {
-            const statusElement = document.getElementById('formStatus');
-            statusElement.textContent = `Status: ${status.toUpperCase()}`;
-            statusElement.className = `status-${status}`;
+                })
+                .catch(error => console.error("Error loading form:", error));
         }
 
         // Handle form submission
-        document.getElementById('releaseForm').addEventListener('submit', async function(e) {
+        document.getElementById('releaseForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
             const formData = {
@@ -273,55 +220,19 @@
                 submittedAt: new Date().toISOString()
             };
 
-            try {
-                if (formId) {
-                    await db.collection('forms').doc(formId).update({
-                        formData: formData,
-                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    alert('Form updated successfully!');
-                } else {
-                    alert('Error: No form ID provided');
-                }
-            } catch (error) {
-                console.error("Error saving form:", error);
-                alert('Error submitting form. Please try again.');
-            }
-        });
+            const savePromise = formId ? 
+                db.collection('forms').doc(formId).update(formData) :
+                db.collection('forms').add(formData);
 
-        // Add status controls for admin
-        if (isAdmin) {
-            const adminControls = document.createElement('div');
-            adminControls.id = 'adminControls';
-            adminControls.innerHTML = `
-                <div class="admin-panel">
-                    <h3>Admin Controls</h3>
-                    <button onclick="updateFormStatus('approved')">Mark as Approved</button>
-                    <button onclick="updateFormStatus('completed')">Mark as Completed</button>
-                </div>
-            `;
-            document.body.appendChild(adminControls);
-        }
-
-        // Function to update form status
-        async function updateFormStatus(status) {
-            try {
-                await db.collection('forms').doc(formId).update({
-                    status: status,
-                    statusUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            savePromise
+                .then(() => {
+                    alert('Form submitted successfully!');
+                })
+                .catch(error => {
+                    console.error("Error saving form:", error);
+                    alert('Error submitting form. Please try again.');
                 });
-                updateStatusDisplay(status);
-                alert(`Form marked as ${status}`);
-            } catch (error) {
-                console.error("Error updating status:", error);
-                alert('Error updating form status');
-            }
-        }
-
-        // Load form if ID exists
-        if (formId) {
-            loadForm(formId);
-        }
+        });
     </script>
 </body>
 </html>
