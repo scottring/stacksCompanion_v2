@@ -22,143 +22,113 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createNewReviewForm = void 0;
+exports.createFormFromSheet = void 0;
 const https_1 = require("firebase-functions/v2/https");
-const logger = __importStar(require("firebase-functions/logger"));
 const admin = __importStar(require("firebase-admin"));
-const mail_1 = __importDefault(require("@sendgrid/mail"));
 // Initialize Firebase Admin
 admin.initializeApp();
-// Initialize SendGrid with API key from environment variable
-const sendgridKey = process.env.SENDGRID_API_KEY;
-if (!sendgridKey) {
-    logger.warn("SendGrid API key is not configured in environment");
-}
-else {
-    try {
-        mail_1.default.setApiKey(sendgridKey);
-        logger.info("SendGrid API key configured successfully");
+// Field name normalization helper
+const normalizeFieldName = (data, originalField, encodedField) => {
+    const value = data[originalField] || data[encodedField];
+    if (!value) {
+        throw new Error(`Missing required field: ${originalField}`);
     }
-    catch (error) {
-        logger.error("Error configuring SendGrid:", error);
-    }
-}
-exports.createNewReviewForm = (0, https_1.onRequest)({
-    memory: "256MiB",
-    timeoutSeconds: 60,
-    minInstances: 0,
-    maxInstances: 100,
-    region: "us-central1",
-    cors: true,
-    secrets: ["SENDGRID_API_KEY"]
+    return value;
+};
+// Main function
+exports.createFormFromSheet = (0, https_1.onRequest)({
+    region: 'europe-west1',
+    maxInstances: 10,
+    cors: true // Enable CORS for all origins
 }, async (request, response) => {
-    // Set CORS headers for all responses
+    // Set CORS headers
     response.set('Access-Control-Allow-Origin', '*');
-    response.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    response.set('Access-Control-Allow-Methods', 'POST');
     response.set('Access-Control-Allow-Headers', 'Content-Type');
-    if (request.method === "OPTIONS") {
-        response.status(204).send("");
-        return;
-    }
-    if (request.method !== "POST") {
-        response.status(405).json({
-            success: false,
-            error: "Method not allowed"
-        });
+    // Handle preflight requests
+    if (request.method === 'OPTIONS') {
+        response.status(204).send('');
         return;
     }
     try {
-        // Verify SendGrid configuration
-        if (!sendgridKey) {
-            throw new Error("SendGrid API key is not configured in environment");
-        }
-        const { productName, adminEmail, reviewers, } = request.body;
-        // Validate required fields
-        if (!productName || !adminEmail || !Array.isArray(reviewers)) {
-            throw new Error("Missing required fields: productName, adminEmail, and reviewers array");
-        }
-        // Log the request
-        logger.info("Creating new form", {
-            productName,
-            adminEmail,
-            reviewersCount: reviewers.length,
-        });
-        // Create reviewers array with roles
-        const reviewersWithRoles = [
-            {
-                email: adminEmail,
-                role: "admin",
-                hasSigned: false,
-            },
-            ...reviewers.map((email) => ({
-                email,
-                role: "reviewer",
-                hasSigned: false,
-            })),
-        ];
-        // Create Firestore document
-        const formRef = await admin.firestore().collection("productReviews").add({
-            productName,
-            adminEmail,
-            reviewers: reviewersWithRoles,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            status: "pending",
-        });
-        // Generate form URLs
-        const baseUrl = "https://stacksdata.com/sappi-review";
-        const formUrl = `${baseUrl}?id=${formRef.id}`;
-        const adminUrl = `${formUrl}&admin=true`;
-        try {
-            // Send email to admin
-            await mail_1.default.send({
-                to: adminEmail,
-                from: "admin@stacksdata.com",
-                subject: `New Product Review Form: ${productName}`,
-                html: `
-            <h2>New Product Review Form Created</h2>
-            <p>A new product review form has been created for: ${productName}</p>
-            <p>Click here to access the form (admin view): 
-               <a href="${adminUrl}">${adminUrl}</a></p>
-            <p>The following reviewers have been notified:</p>
-            <ul>
-                ${reviewers.map((email) => `<li>${email}</li>`).join("")}
-            </ul>
-          `,
+        // Only allow POST requests
+        if (request.method !== 'POST') {
+            response.status(405).json({
+                success: false,
+                message: 'Method not allowed'
             });
-            // Send emails to reviewers
-            await Promise.all(reviewers.map((email) => mail_1.default.send({
-                to: email,
-                from: "admin@stacksdata.com",
-                subject: `Product Review Required: ${productName}`,
-                html: `
-              <h2>Product Review Required</h2>
-              <p>You have been requested to review: ${productName}</p>
-              <p>Click here to access the form: 
-                 <a href="${formUrl}">${formUrl}</a></p>
-            `,
-            })));
-            logger.info("Emails sent successfully");
+            return;
         }
-        catch (emailError) {
-            logger.error("Error sending emails:", emailError);
-            // Continue execution even if emails fail
+        console.log('Received request body:', request.body);
+        // Extract and validate fields with improved error handling
+        try {
+            const requestData = request.body;
+            const companyName = normalizeFieldName(requestData, "Sheet's Company Name", "Sheet&#39;s Company Name");
+            const productName = normalizeFieldName(requestData, "Sheet's Product Name", "Sheet&#39;s Product Name");
+            const requesterEmail = normalizeFieldName(requestData, "Sheet Creator's Email", "Sheet Creator&#39;s Email");
+            console.log('Parsed data:', { companyName, productName, requesterEmail });
+            // Generate unique form ID
+            const formId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+            // Create form data
+            const formData = {
+                companyName,
+                productName,
+                requesterEmail,
+                status: 'pending',
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+            // Save to Firestore
+            await admin.firestore().collection('forms').doc(formId).set(formData);
+            // Generate form URL
+            const formUrl = new URL('https://internal-review.stacksdata.com');
+            formUrl.searchParams.set('id', formId);
+            formUrl.searchParams.set('company', companyName);
+            formUrl.searchParams.set('product', productName);
+            // Send email using Firebase Extension
+            await admin.firestore().collection('mail').add({
+                to: requesterEmail,
+                message: {
+                    subject: `Review Form Ready - ${productName}`,
+                    html: `
+            <h2>Product Review Form Ready</h2>
+            <p>Hello,</p>
+            <p>Your sheet has been approved and a review form has been created for:</p>
+            <ul>
+              <li>Company: ${companyName}</li>
+              <li>Product: ${productName}</li>
+            </ul>
+            <p>Please click the link below to access the form:</p>
+            <p><a href="${formUrl.toString()}">${formUrl.toString()}</a></p>
+            <p>You can review the pre-filled information and set up the approval workflow.</p>
+          `
+                }
+            });
+            response.status(200).json({
+                success: true,
+                formUrl: formUrl.toString(),
+                formId,
+                message: 'Form created and email sent successfully'
+            });
+            return;
         }
-        response.status(200).json({
-            success: true,
-            message: "Form created successfully",
-            formId: formRef.id,
-        });
+        catch (validationError) {
+            console.error('Validation error:', validationError);
+            response.status(400).json({
+                success: false,
+                message: validationError instanceof Error ? validationError.message : 'Invalid input'
+            });
+            return;
+        }
     }
     catch (error) {
-        logger.error("Error creating form:", error);
+        console.error('Error processing request:', error);
         response.status(500).json({
             success: false,
-            error: error instanceof Error ? error.message : "Unknown error occurred",
+            message: 'Internal server error',
+            error: error instanceof Error ? error.message : 'Unknown error'
         });
+        return;
     }
 });
 //# sourceMappingURL=index.js.map

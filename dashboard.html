@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sappi Review Dashboard</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <style>
+        :root {
+            --primary-color: #005B97;
+            --hover-color: #004470;
+            --background-color: #f5f5f5;
+            --text-color: #333;
+            --border-color: #ddd;
+            --success-color: #4CAF50;
+            --warning-color: #FFA726;
+            --pending-color: #90CAF9;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        .header {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            color: var(--primary-color);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+
+        .search-box {
+            flex: 1;
+            max-width: 300px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .filter-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        select {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .dashboard-table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: rgba(0,0,0,0.02);
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background-color: var(--pending-color);
+            color: #1565C0;
+        }
+
+        .status-in-progress {
+            background-color: var(--warning-color);
+            color: #E65100;
+        }
+
+        .status-completed {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .action-button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .action-button:hover {
+            background-color: var(--hover-color);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box {
+                max-width: none;
+            }
+
+            .dashboard-table {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Sappi Review Dashboard</h1>
+    </div>
+
+    <div class="controls">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search by product name or department...">
+        </div>
+        <div class="filter-controls">
+            <select id="statusFilter">
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+            </select>
+            <select id="sortBy">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="product">Product Name</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="dashboard-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Department</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Created Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="formsTableBody">
+                <tr>
+                    <td colspan="6" class="loading">Loading forms...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCdSgohwFoiRjyiHntEVCnsZOof_wtuGck",
+            authDomain: "stacks-companion-68225.firebaseapp.com",
+            projectId: "stacks-companion-68225",
+            storageBucket: "stacks-companion-68225.appspot.com",
+            messagingSenderId: "1039460737398",
+            appId: "1:1039460737398:web:d6c84fa4f4866d96a4c1f3"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // State management
+        let allForms = [];
+        let filteredForms = [];
+
+        // Format date
+        function formatDate(timestamp) {
+            if (!timestamp) return 'N/A';
+            const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
+            return new Intl.DateTimeFormat('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }).format(date);
+        }
+
+        // Calculate progress
+        function calculateProgress(form) {
+            if (!form.reviewers) return 0;
+            const totalReviewers = form.reviewers.length;
+            const completedReviews = form.signatures ? Object.keys(form.signatures).length : 0;
+            return (completedReviews / totalReviewers) * 100;
+        }
+
+        // Get status based on progress
+        function getStatus(form) {
+            const progress = calculateProgress(form);
+            if (progress === 0) return 'pending';
+            if (progress === 100) return 'completed';
+            return 'in-progress';
+        }
+
+        // Render table row
+        function renderTableRow(form) {
+            const progress = calculateProgress(form);
+            const status = getStatus(form);
+            return `
+                <tr>
+                    <td>${form.productName}</td>
+                    <td>${form.department}</td>
+                    <td><span class="status-badge status-${status}">${status}</span></td>
+                    <td>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                        ${progress.toFixed(0)}%
+                    </td>
+                    <td>${formatDate(form.createdAt)}</td>
+                    <td>
+                        <button class="action-button" onclick="viewForm('${form.id}')">View</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // View form
+        function viewForm(formId) {
+            window.location.href = `review-form.html?id=${formId}&admin=true`;
+        }
+
+        // Update table
+        function updateTable() {
+            const tableBody = document.getElementById('formsTableBody');
+            if (filteredForms.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
+                return;
+            }
+            
+            tableBody.innerHTML = filteredForms.map(renderTableRow).join('');
+        }
+
+        // Filter forms
+        function filterForms() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            const sortBy = document.getElementById('sortBy').value;
+
+            filteredForms = allForms.filter(form => {
+                const matchesSearch = (form.productName || '').toLowerCase().includes(searchTerm) ||
+                                   (form.department || '').toLowerCase().includes(searchTerm);
+                const matchesStatus = statusFilter === 'all' || getStatus(form) === statusFilter;
+                return matchesSearch && matchesStatus;
+            });
+
+            // Sort forms
+            filteredForms.sort((a, b) => {
+                switch (sortBy) {
+                    case 'newest':
+                        return (b.createdAt || 0) - (a.createdAt || 0);
+                    case 'oldest':
+                        return (a.createdAt || 0) - (b.createdAt || 0);
+                    case 'product':
+                        return (a.productName || '').localeCompare(b.productName || '');
+                    default:
+                        return 0;
+                }
+            });
+
+            updateTable();
+        }
+
+        // Event listeners
+        document.getElementById('searchInput').addEventListener('input', filterForms);
+        document.getElementById('statusFilter').addEventListener('change', filterForms);
+        document.getElementById('sortBy').addEventListener('change', filterForms);
+
+        // Load forms
+        // Demo data instead of Firebase fetch
+        const demoForms = [
+            {
+                id: 'form1',
+                productName: 'EcoBarrier Plus 2024',
+                department: 'R&D Department',
+                createdAt: new Date('2024-01-15T10:30:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com'],
+                signatures: {'reviewer1@sappi.com': true, 'reviewer2@sappi.com': true}
+            },
+            {
+                id: 'form2',
+                productName: 'Wireframe Coating',
+                department: 'Production',
+                createdAt: new Date('2024-01-14T15:45:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com'],
+                signatures: {'reviewer1@sappi.com': true}
+            },
+            {
+                id: 'form3',
+                productName: 'UltraStrength Fiber',
+                department: 'R&D Department',
+                createdAt: new Date('2024-01-13T09:15:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com'],
+                signatures: {}
+            },
+            {
+                id: 'form4',
+                productName: 'BioCoat Natural',
+                department: 'Sustainability',
+                createdAt: new Date('2024-01-12T14:20:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com', 'reviewer3@sappi.com'],
+                signatures: {'reviewer1@sappi.com': true, 'reviewer2@sappi.com': true}
+            },
+            {
+                id: 'form5',
+                productName: 'NanoTech Finish',
+                department: 'Innovation Lab',
+                createdAt: new Date('2024-01-11T11:30:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com'],
+                signatures: {'reviewer1@sappi.com': true, 'reviewer2@sappi.com': true}
+            },
+            {
+                id: 'form6',
+                productName: 'PureWhite Enhanced',
+                department: 'Quality Control',
+                createdAt: new Date('2024-01-10T16:45:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com'],
+                signatures: {}
+            },
+            {
+                id: 'form7',
+                productName: 'SmartSeal Pro',
+                department: 'R&D Department',
+                createdAt: new Date('2024-01-09T13:15:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com'],
+                signatures: {'reviewer1@sappi.com': true}
+            },
+            {
+                id: 'form8',
+                productName: 'EcoFiber Blend',
+                department: 'Sustainability',
+                createdAt: new Date('2024-01-08T10:00:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com'],
+                signatures: {'reviewer1@sappi.com': true, 'reviewer2@sappi.com': true}
+            },
+            {
+                id: 'form9',
+                productName: 'DuraTech Coating',
+                department: 'Production',
+                createdAt: new Date('2024-01-07T15:30:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com'],
+                signatures: {'reviewer1@sappi.com': true}
+            },
+            {
+                id: 'form10',
+                productName: 'BioBarrier Flex',
+                department: 'Innovation Lab',
+                createdAt: new Date('2024-01-06T09:45:00'),
+                reviewers: ['reviewer1@sappi.com', 'reviewer2@sappi.com'],
+                signatures: {}
+            }
+        ];
+
+        // Replace Firebase listener with demo data
+        allForms = demoForms;
+        filterForms();
+    </script>
+</body>
+</html>

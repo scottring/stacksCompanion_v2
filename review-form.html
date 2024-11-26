@@ -6,6 +6,7 @@
     <title>Sappi - New Product Release Form</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="bubble-integration.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -63,30 +64,37 @@
         <div class="form-section">
             <h3>Basic Information</h3>
             <div class="form-group">
-                <label>Requesting Department:</label>
-                <select id="department" required>
-                    <option value="">Select department</option>
-                    <!-- Add departments -->
-                </select>
+                <label for="department">Department:</label>
+                <input type="text" id="department" value="R&D Department" required>
             </div>
 
             <div class="form-group">
-                <label>Product/Trade Name:</label>
-                <input type="text" id="productName" required>
+                <label for="companyName">Company Name:</label>
+                <input type="text" id="companyName" readonly>
             </div>
 
             <div class="form-group">
-                <label>Chemical Characterization:</label>
+                <label for="productName">Product Name:</label>
+                <input type="text" id="productName" value="Wireframe" required>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Product Description:</label>
+                <textarea id="description" required>New innovative wireframe coating technology for enhanced paper strength and durability.</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="chemicalChar">Chemical Characterization:</label>
                 <input type="text" id="chemicalChar">
             </div>
 
             <div class="form-group">
-                <label>Mat.-Nr. (ECR. Introduction):</label>
+                <label for="matNr">Mat.-Nr. (ECR. Introduction):</label>
                 <input type="text" id="matNr">
             </div>
 
             <div class="form-group">
-                <label>Product Group:</label>
+                <label for="productGroup">Product Group:</label>
                 <select id="productGroup" required>
                     <option value="">Select product group</option>
                     <!-- Add groups -->
@@ -94,7 +102,7 @@
             </div>
 
             <div class="form-group">
-                <label>Rating Class:</label>
+                <label for="ratingClass">Rating Class:</label>
                 <select id="ratingClass">
                     <option value="">Select rating class</option>
                     <!-- Add classes -->
@@ -105,27 +113,22 @@
         <div class="form-section">
             <h3>Product Details</h3>
             <div class="form-group">
-                <label>Substance Assignment:</label>
-                <select id="substanceAssignment" multiple>
-                    <option value="sm">SM formulation-independent</option>
-                    <option value="pm">PM formulation-independent</option>
-                    <option value="ut">UT excipients</option>
-                    <option value="zf">ZF pre-sorting</option>
-                </select>
+                <label for="application">Application:</label>
+                <textarea id="application" required>Industrial paper manufacturing, specifically for high-stress applications requiring superior tensile strength.</textarea>
             </div>
 
             <div class="form-group">
-                <label>Goal of Introduction / Reason for Change:</label>
+                <label for="goal">Goal of Introduction / Reason for Change:</label>
                 <textarea id="goal" rows="4"></textarea>
             </div>
 
             <div class="form-group">
-                <label>Manufacturer/Supplier:</label>
+                <label for="manufacturer">Manufacturer/Supplier:</label>
                 <input type="text" id="manufacturer">
             </div>
 
             <div class="form-group">
-                <label>Product Information:</label>
+                <label for="productInfo">Product Information:</label>
                 <input type="text" id="productInfo" placeholder="Solids content %, active ingredient content %, density kg/m³">
             </div>
         </div>
@@ -146,13 +149,17 @@
 
             <div class="checkbox-group">
                 <label>
-                    <input type="checkbox" id="hazardousSubstances"> Hazardous Substances Questionnaire Required
+                    <input type="checkbox" id="hazardousSubstances" checked> Hazardous Substances Questionnaire Required
                 </label>
             </div>
 
             <div class="form-group">
-                <label>WGK Classification:</label>
-                <input type="text" id="wgk">
+                <label for="wgk">WGK Classification:</label>
+                <select id="wgk" required>
+                    <option value="1">WGK 1 - Low hazard to waters</option>
+                    <option value="2" selected>WGK 2 - Hazard to waters</option>
+                    <option value="3">WGK 3 - Severe hazard to waters</option>
+                </select>
             </div>
         </div>
 
@@ -173,9 +180,19 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Get form ID from URL
+        // Get URL parameters
         const urlParams = new URLSearchParams(window.location.search);
+        const companyName = urlParams.get('company');
+        const productName = urlParams.get('product');
         const formId = urlParams.get('id');
+
+        // Pre-fill the form
+        if (companyName) {
+            document.getElementById('companyName').value = decodeURIComponent(companyName);
+        }
+        if (productName) {
+            document.getElementById('productName').value = decodeURIComponent(productName);
+        }
 
         // Load form data if exists
         if (formId) {
@@ -205,17 +222,21 @@
             
             const formData = {
                 department: document.getElementById('department').value,
+                companyName: document.getElementById('companyName').value,
                 productName: document.getElementById('productName').value,
+                description: document.getElementById('description').value,
                 chemicalChar: document.getElementById('chemicalChar').value,
                 matNr: document.getElementById('matNr').value,
                 productGroup: document.getElementById('productGroup').value,
                 ratingClass: document.getElementById('ratingClass').value,
+                application: document.getElementById('application').value,
                 goal: document.getElementById('goal').value,
                 manufacturer: document.getElementById('manufacturer').value,
                 productInfo: document.getElementById('productInfo').value,
                 safetyDataSheet: document.getElementById('safetyDataSheet').checked,
                 productQuestionnaire: document.getElementById('productQuestionnaire').checked,
-                hazardousSubstances: document.getElementById('hazardousSubstances').checked,
+       <input type="hidden" id="formId">
+       <input type="hidden" id="creatorEmail">         hazardousSubstances: document.getElementById('hazardousSubstances').checked,
                 wgk: document.getElementById('wgk').value,
                 submittedAt: new Date().toISOString()
             };

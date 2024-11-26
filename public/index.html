@@ -3,471 +3,477 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sappi - New Product Release Form</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <title>Product Release Form</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .form-container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .form-section {
-            margin-bottom: 30px;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        input[type="text"], select, textarea {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .checkbox-group {
-            margin: 10px 0;
-        }
-        .submit-button {
-            background-color: #005587;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .submit-button:hover {
-            background-color: #004470;
-        }
-        .signature-section {
-            margin-top: 40px;
-            border-top: 1px solid #ddd;
-            padding-top: 20px;
-        }
-        .signature-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .signature-block {
-            margin-bottom: 20px;
-        }
-        .signature-line input {
-            width: 100%;
-            border: none;
-            border-bottom: 1px solid #000;
-            padding: 5px 0;
-            margin-top: 5px;
-            font-family: 'Brush Script MT', cursive;
-            font-size: 1.2em;
-        }
-        .signature-date input[type="date"] {
-            border: none;
-            border-bottom: 1px solid #666;
-            color: #666;
-            padding: 5px 0;
-        }
-        .signature-name {
-            font-weight: bold;
-        }
-        .signature-title {
-            margin-bottom: 5px;
-        }
-        .signature-date {
-            margin-top: 5px;
-            color: #666;
-        }
-        /* Survey List Styles */
-        #surveyList {
-            margin-top: 40px;
-        }
-        .survey-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-        .survey-card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
             background: white;
+            padding: 30px;
+            border-radius: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .survey-header {
+        .form-section {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .section-title {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .required-field::after {
+            content: "*";
+            color: red;
+            margin-left: 4px;
+        }
+        .checkbox-group {
             display: flex;
-            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .checkbox-item {
+            display: flex;
             align-items: center;
+            gap: 5px;
+        }
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 500;
+            display: inline-block;
+        }
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-reviewed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .approver-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
             margin-bottom: 10px;
         }
-        .survey-header h4 {
-            margin: 0;
-            color: #005587;
+        .approver-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
         }
-        .survey-date {
-            color: #666;
-            font-size: 0.9em;
-        }
-        .survey-details {
-            margin: 10px 0;
-        }
-        .survey-details p {
-            margin: 5px 0;
-            font-size: 0.9em;
-        }
-        .survey-footer {
-            margin-top: 15px;
-            text-align: right;
-        }
-        .view-button {
-            background-color: #005587;
-            color: white;
-            border: none;
-            padding: 5px 15px;
-            border-radius: 4px;
+        .edit-icon {
             cursor: pointer;
-            font-size: 0.9em;
+            color: #007bff;
         }
-        .view-button:hover {
-            background-color: #004470;
+        .edit-icon:hover {
+            color: #0056b3;
         }
-        .loading, .no-surveys, .error {
-            text-align: center;
+        .signature-box {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+        .approval-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        .status-approved {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .initiate-review-btn {
+            margin-bottom: 20px;
+        }
+        .form-header {
+            background-color: #f8f9fa;
             padding: 20px;
-            color: #666;
-        }
-        .error {
-            color: #dc3545;
+            border-radius: 5px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Sappi - Agents Release Form</h1>
-        <h2>Introduction of New Products - Werk Alfeld</h2>
+    <div class="form-container">
+        <div class="text-center mb-4">
+            <h2>Product Release Form</h2>
+            <div class="status-badge status-pending" id="formStatus">Pending Review</div>
+        </div>
+
+        <form id="releaseForm">
+            <!-- Basic Information Section -->
+            <div class="form-section">
+                <h4 class="section-title">Basic Information</h4>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required-field">Company Name</label>
+                        <input type="text" class="form-control" id="companyName" name="companyName">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required-field">Product Name</label>
+                        <input type="text" class="form-control" id="productName" name="productName">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Department Information Section -->
+            <div class="form-section">
+                <h4 class="section-title">Department Information</h4>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required-field">Requesting Department</label>
+                        <select class="form-control" name="requesting_department" required>
+                            <option value="">Select department</option>
+                            <option value="Production">Production</option>
+                            <option value="Quality Control">Quality Control</option>
+                            <option value="Research & Development">Research & Development</option>
+                            <option value="Technical Support">Technical Support</option>
+                            <option value="Engineering">Engineering</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required-field">Department</label>
+                        <select class="form-control" name="department" required>
+                            <option value="">Select department</option>
+                            <option value="Paper Production">Paper Production</option>
+                            <option value="Coating">Coating</option>
+                            <option value="Converting">Converting</option>
+                            <option value="Laboratory">Laboratory</option>
+                            <option value="Maintenance">Maintenance</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product Details Section -->
+            <div class="form-section">
+                <h4 class="section-title">Product Details</h4>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label required-field">Product Group</label>
+                        <select class="form-control" name="product_group" required>
+                            <option value="">Select product group</option>
+                            <option value="Raw Materials">Raw Materials</option>
+                            <option value="Chemical Additives">Chemical Additives</option>
+                            <option value="Coating Materials">Coating Materials</option>
+                            <option value="Process Aids">Process Aids</option>
+                            <option value="Packaging Materials">Packaging Materials</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label required-field">Rating Class</label>
+                        <select class="form-control" name="rating_class" required>
+                            <option value="">Select rating class</option>
+                            <option value="Class A - Critical">Class A - Critical</option>
+                            <option value="Class B - Major">Class B - Major</option>
+                            <option value="Class C - Minor">Class C - Minor</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label required-field">Mat.-Nr. (ECR. Introduction)</label>
+                        <input type="text" class="form-control" name="mat_nr" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="form-label required-field">Goal of Introduction / Reason for Change</label>
+                        <textarea class="form-control" name="goal_of_introduction" rows="3" required></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product Information Section -->
+            <div class="form-section">
+                <h4 class="section-title">Additional Information</h4>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required-field">Manufacturer/Supplier</label>
+                        <input type="text" class="form-control" name="manufacturer_supplier" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Product Information</label>
+                        <input type="text" class="form-control" name="product_information" 
+                               placeholder="Solids content %, active ingredient content %, density kg/m³">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Use / Substitute For</label>
+                        <input type="text" class="form-control" name="substitute_for" 
+                               placeholder="Alternative product to">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required-field">Packaging</label>
+                        <select class="form-control" name="packaging" required multiple>
+                            <option value="Pallet">Pallet</option>
+                            <option value="Disposable">Disposable</option>
+                            <option value="Foil">Foil</option>
+                            <option value="Metal">Metal</option>
+                            <option value="Glass">Glass</option>
+                            <option value="Small Container">Small Container</option>
+                            <option value="Big Bag/TBC">Big Bag/TBC</option>
+                            <option value="Barrel">Barrel</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Safety and Compliance Section -->
+            <div class="form-section">
+                <h4 class="section-title">Safety and Compliance</h4>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="safety_data_sheet" id="safetyDataSheet">
+                            <label class="form-check-label" for="safetyDataSheet">
+                                Safety Data Sheet Available
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="product_questionnaire" id="productQuestionnaire">
+                            <label class="form-check-label" for="productQuestionnaire">
+                                Product Questionnaire Required
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="hazardous_substance" id="hazardousSubstance">
+                            <label class="form-check-label" for="hazardousSubstance">
+                                Hazardous Substance Questionnaire Required
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">WGK Classification</label>
+                        <select class="form-control" name="wgk_classification">
+                            <option value="">Select WGK classification</option>
+                            <option value="1">WGK 1</option>
+                            <option value="2">WGK 2</option>
+                            <option value="3">WGK 3</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">VAwS Cadastre</label>
+                        <input type="text" class="form-control" name="vaws_cadastre" 
+                               placeholder="No., correction sheet sent to P&U?">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Approval Section -->
+            <div class="form-section">
+                <h4 class="section-title">Approval Information</h4>
+                <div id="initiateReviewSection" class="text-center mb-4">
+                    <button type="button" class="btn btn-primary btn-lg" id="initiateReviewBtn">
+                        Initiate Review Process
+                    </button>
+                </div>
+                
+                <!-- Requester -->
+                <div class="approver-section">
+                    <div class="approver-info">
+                        <div class="flex-grow-1">
+                            <label class="form-label">Requester</label>
+                            <div class="d-flex align-items-center">
+                                <input type="text" class="form-control" name="requester" value="John Smith" readonly>
+                                <input type="email" class="form-control ms-2" name="requesterEmail" value="john.smith@company.com" readonly>
+                                <i class="fas fa-edit edit-icon ms-2" onclick="editApprover('requester')"></i>
+                            </div>
+                        </div>
+                        <div class="approval-status status-pending">Pending</div>
+                    </div>
+                    <div class="signature-box" id="requesterSignature" style="display: none;">
+                        <textarea class="form-control" placeholder="Add comments..."></textarea>
+                        <button type="button" class="btn btn-success mt-2" onclick="approve('requester')">Approve</button>
+                    </div>
+                </div>
+
+                <!-- Operator -->
+                <div class="approver-section">
+                    <div class="approver-info">
+                        <div class="flex-grow-1">
+                            <label class="form-label">Operator</label>
+                            <div class="d-flex align-items-center">
+                                <input type="text" class="form-control" name="operator" value="Jane Doe" readonly>
+                                <input type="email" class="form-control ms-2" name="operatorEmail" value="jane.doe@company.com" readonly>
+                                <i class="fas fa-edit edit-icon ms-2" onclick="editApprover('operator')"></i>
+                            </div>
+                        </div>
+                        <div class="approval-status status-pending">Pending</div>
+                    </div>
+                    <div class="signature-box" id="operatorSignature" style="display: none;">
+                        <textarea class="form-control" placeholder="Add comments..."></textarea>
+                        <button type="button" class="btn btn-success mt-2" onclick="approve('operator')">Approve</button>
+                    </div>
+                </div>
+
+                <!-- Environmental Officer -->
+                <div class="approver-section">
+                    <div class="approver-info">
+                        <div class="flex-grow-1">
+                            <label class="form-label">Environmental Officer</label>
+                            <div class="d-flex align-items-center">
+                                <input type="text" class="form-control" name="environmentalOfficer" value="Mike Johnson" readonly>
+                                <input type="email" class="form-control ms-2" name="environmentalOfficerEmail" value="mike.j@company.com" readonly>
+                                <i class="fas fa-edit edit-icon ms-2" onclick="editApprover('environmentalOfficer')"></i>
+                            </div>
+                        </div>
+                        <div class="approval-status status-pending">Pending</div>
+                    </div>
+                    <div class="signature-box" id="environmentalOfficerSignature" style="display: none;">
+                        <textarea class="form-control" placeholder="Add comments..."></textarea>
+                        <button type="button" class="btn btn-success mt-2" onclick="approve('environmentalOfficer')">Approve</button>
+                    </div>
+                </div>
+
+                <!-- Safety Officer -->
+                <div class="approver-section">
+                    <div class="approver-info">
+                        <div class="flex-grow-1">
+                            <label class="form-label">Safety Officer</label>
+                            <div class="d-flex align-items-center">
+                                <input type="text" class="form-control" name="safetyOfficer" value="Sarah Wilson" readonly>
+                                <input type="email" class="form-control ms-2" name="safetyOfficerEmail" value="sarah.w@company.com" readonly>
+                                <i class="fas fa-edit edit-icon ms-2" onclick="editApprover('safetyOfficer')"></i>
+                            </div>
+                        </div>
+                        <div class="approval-status status-pending">Pending</div>
+                    </div>
+                    <div class="signature-box" id="safetyOfficerSignature" style="display: none;">
+                        <textarea class="form-control" placeholder="Add comments..."></textarea>
+                        <button type="button" class="btn btn-success mt-2" onclick="approve('safetyOfficer')">Approve</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <button type="submit" class="btn btn-primary btn-lg">Submit Form</button>
+            </div>
+        </form>
     </div>
 
-    <form id="releaseForm">
-        <div class="form-section">
-            <h3>Basic Information</h3>
-            <div class="form-group">
-                <label>Requesting Department:</label>
-                <select id="department" required>
-                    <option value="">Select department</option>
-                    <option value="equipment">Equipment</option>
-                    <option value="electrical">Electrical operating technology</option>
-                    <option value="mechanics">Operating technology mechanics</option>
-                    <option value="fiberline">Fiber line</option>
-                    <option value="woodline">Wood line</option>
-                    <option value="powerplant">Power plant</option>
-                    <option value="pqm">PQM</option>
-                    <option value="production1">Production line 1</option>
-                    <option value="production2">Production line 2</option>
-                    <option value="production3">Production line 3</option>
-                    <option value="water">Water/sewage/waste</option>
-                    <option value="newproduct">New product development</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Product/Trade Name:</label>
-                <input type="text" id="productName" required>
-            </div>
-
-            <div class="form-group">
-                <label>Chemical Characterization:</label>
-                <input type="text" id="chemicalChar">
-            </div>
-
-            <div class="form-group">
-                <label>Mat.-Nr. (ECR. Introduction):</label>
-                <input type="text" id="matNr">
-            </div>
-
-            <div class="form-group">
-                <label>Product Hierarchy:</label>
-                <select id="productGroup" required>
-                    <option value="">Select product hierarchy</option>
-                    <option value="036000-01">036000-01 CMC</option>
-                    <option value="036000-02">036000-02 SB latex</option>
-                    <option value="036000-03">036000-03 SA Latex</option>
-                    <option value="036000-04">036000-04 PVOH</option>
-                    <option value="036000-05">036000-05 Binder others</option>
-                    <option value="036061-01">036061-01 Talc</option>
-                    <option value="036061-02">036061-02 GCC</option>
-                    <option value="036061-03">036061-03 PCC</option>
-                    <option value="036061-04">036061-04 Kaolin</option>
-                    <option value="036061-05">036061-05 TiO2</option>
-                    <option value="036061-12">036061-12 Pigment others</option>
-                    <option value="036061-14">036061-14 Gypsum</option>
-                    <option value="036064-01">036064-01 Starch Barley</option>
-                    <option value="036064-02">036064-02 Starch Corn</option>
-                    <option value="036064-03">036064-03 Starch Corn/Potato Blend</option>
-                    <option value="036064-04">036064-04 Starch Potato</option>
-                    <option value="036064-05">036064-05 Starch Wheat</option>
-                    <option value="036067-01">036067-01 OBA</option>
-                    <option value="036070-01">036070-01 Dyes</option>
-                    <option value="036073-01">036073-01 Sizing</option>
-                    <option value="036073-02">036073-02 Surface sizing</option>
-                    <option value="036077-01">036077-01 MgO</option>
-                    <option value="036077-02">036077-02 Sulfuric products</option>
-                    <option value="036077-03">036077-03 NaOH</option>
-                    <option value="036077-04">036077-04 H2O2</option>
-                    <option value="036077-05">036077-05 other bleaching chemicals</option>
-                    <option value="036077-06">036077-06 Oxygen</option>
-                    <option value="036080-01">036080-01 Chelating agent</option>
-                    <option value="036080-02">036080-02 Thickener</option>
-                    <option value="036080-03">036080-03 Fixative</option>
-                    <option value="036080-04">036080-04 PAC</option>
-                    <option value="036080-05">036080-05 Water treatment</option>
-                    <option value="036080-06">036080-06 Flocculant</option>
-                    <option value="036080-07">036080-07 Barrier additives</option>
-                    <option value="036080-08">036080-08 Ca-Stearates</option>
-                    <option value="036080-09">036080-09 Dispersant</option>
-                    <option value="036080-10">036080-10 Dry strength</option>
-                    <option value="036080-11">036080-11 Enzymes</option>
-                    <option value="036080-12">036080-12 Additives for the press section</option>
-                    <option value="036080-13">036080-13 Surface strength</option>
-                    <option value="036080-14">036080-14 Anti-foaming agent</option>
-                    <option value="036080-15">036080-15 Cleaning agent</option>
-                    <option value="036080-16">036080-16 Biocides</option>
-                    <option value="036080-17">036080-17 Bentonite</option>
-                    <option value="036080-18">036080-18 Storage</option>
-                    <option value="036080-19">036080-19 Retention microparticles</option>
-                    <option value="036080-20">036080-20 Retention polymers</option>
-                    <option value="036080-21">036080-21 Acids</option>
-                    <option value="036080-22">036080-22 alkalis</option>
-                    <option value="036080-23">036080-23 Corrosion inhibitors</option>
-                    <option value="036080-24">036080-24 Organic products</option>
-                    <option value="036080-25">036080-25 Salt</option>
-                    <option value="036080-26">036080-26 Limescale inhibitors</option>
-                    <option value="036080-27">036080-27 Cationic fixative</option>
-                    <option value="036080-28">036080-28 pH value</option>
-                    <option value="036080-29">036080-29 Spec Chem others</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Rating Class:</label>
-                <select id="ratingClass">
-                    <option value="">Select rating class</option>
-                    <option value="3122">3122 Caustic</option>
-                    <option value="3123">3123 Magnesium Oxides</option>
-                    <option value="3124">3124 peroxides</option>
-                    <option value="3129">3129 Pigments</option>
-                    <option value="3130">3130 fillers</option>
-                    <option value="3140">3140 Supplements (wet end PM)</option>
-                    <option value="3143">3143 Binders</option>
-                    <option value="3150">3150 Additives (coating)</option>
-                    <option value="3167">3167 Sizing (gluing, AKD glue, resin glue, surface glue)</option>
-                    <option value="3175">3175 Operating Chemicals</option>
-                    <option value="3179">3179 Other Pulp Chemicals</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="form-section">
-            <h3>Product Details</h3>
-            <div class="form-group">
-                <label>Substance Assignment:</label>
-                <select id="substanceAssignment" multiple>
-                    <option value="sm">SM formulation-independent</option>
-                    <option value="pm">PM formulation-independent</option>
-                    <option value="ut">UT excipients</option>
-                    <option value="zf">ZF pre-sorting</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Goal of Introduction / Reason for Change:</label>
-                <textarea id="goal" rows="4"></textarea>
-            </div>
-
-            <div class="form-group">
-                <label>Manufacturer/Supplier:</label>
-                <input type="text" id="manufacturer">
-            </div>
-
-            <div class="form-group">
-                <label>Product Information:</label>
-                <input type="text" id="productInfo" placeholder="Solids content %, active ingredient content %, density kg/m³">
-            </div>
-        </div>
-
-        <div class="form-section">
-            <h3>Safety & Compliance</h3>
-            <div class="checkbox-group">
-                <label>
-                    <input type="checkbox" id="safetyDataSheet"> Safety Data Sheet Available
-                </label>
-            </div>
-
-            <div class="checkbox-group">
-                <label>
-                    <input type="checkbox" id="productQuestionnaire"> Product Questionnaire Required
-                </label>
-            </div>
-
-            <div class="checkbox-group">
-                <label>
-                    <input type="checkbox" id="hazardousSubstances"> Hazardous Substances Questionnaire Required
-                </label>
-            </div>
-
-            <div class="form-group">
-                <label>WGK Classification:</label>
-                <input type="text" id="wgk">
-            </div>
-        </div>
-
-        <button type="submit" class="submit-button">Submit for Review</button>
-
-        <div class="signature-section">
-            <div class="signature-grid">
-                <!-- Column 1 -->
-                <div class="signature-block">
-                    <div class="signature-title">Requestor:</div>
-                    <div class="signature-line">
-                        <input type="text" id="requestorSignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="requestorDate"></div>
-                </div>
-                <!-- Column 2 -->
-                <div class="signature-block">
-                    <div class="signature-title">Operator:</div>
-                    <div class="signature-line">
-                        <input type="text" id="operatorSignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="operatorDate"></div>
-                </div>
-            </div>
-
-            <div class="signature-grid">
-                <div class="signature-block">
-                    <div class="signature-title">Procurement:</div>
-                    <div class="signature-name">B. Neumann, T. Grotian</div>
-                    <div class="signature-line">
-                        <input type="text" id="procurementSignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="procurementDate"></div>
-                </div>
-                <div class="signature-block">
-                    <div class="signature-title">Incident officer:</div>
-                    <div class="signature-name">Richard Huster</div>
-                    <div class="signature-line">
-                        <input type="text" id="incidentOfficerSignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="incidentOfficerDate"></div>
-                </div>
-            </div>
-
-            <div class="signature-grid">
-                <div class="signature-block">
-                    <div class="signature-title">Water protection/waste officer:</div>
-                    <div class="signature-name">H. Brix</div>
-                    <div class="signature-line">
-                        <input type="text" id="waterProtectionSignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="waterProtectionDate"></div>
-                </div>
-                <div class="signature-block">
-                    <div class="signature-title">PQM:</div>
-                    <div class="signature-name">S. Berdzinski, R. Stephan</div>
-                    <div class="signature-line">
-                        <input type="text" id="pqmSignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="pqmDate"></div>
-                </div>
-            </div>
-
-            <div class="signature-grid">
-                <div class="signature-block">
-                    <div class="signature-title">Security specialist:</div>
-                    <div class="signature-name">C. Brendes, J. Raudis</div>
-                    <div class="signature-line">
-                        <input type="text" id="securitySignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="securityDate"></div>
-                </div>
-                <div class="signature-block">
-                    <div class="signature-title">Head of raw material procurement:</div>
-                    <div class="signature-name">D. Jeckstadt, C. Ahrens</div>
-                    <div class="signature-line">
-                        <input type="text" id="rawMaterialSignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="rawMaterialDate"></div>
-                </div>
-            </div>
-
-            <div class="signature-grid">
-                <div class="signature-block">
-                    <div class="signature-title">Operator BRK:</div>
-                    <div class="signature-name">T. Handke, P. Holzberger</div>
-                    <div class="signature-line">
-                        <input type="text" id="brkSignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="brkDate"></div>
-                </div>
-                <div class="signature-block">
-                    <div class="signature-title">Head of fire protection officer:</div>
-                    <div class="signature-name">R. Ahrens</div>
-                    <div class="signature-line">
-                        <input type="text" id="fireProtectionSignature" placeholder="Type signature">
-                    </div>
-                    <div class="signature-date">Date: <input type="date" id="fireProtectionDate"></div>
-                </div>
-            </div>
-        </div>
-    </form>
-
-    <!-- Survey List Section -->
-    <div class="form-section" id="surveyList">
-        <h3>Submitted Surveys</h3>
-        <div class="survey-grid" id="surveyGrid">
-            <!-- Surveys will be loaded here -->
-        </div>
-    </div>
+    <!-- Firebase App (the core Firebase SDK) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <!-- Firebase Firestore -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 
     <script>
-        // Initialize Firebase
+        // Initialize Firebase with your config
         const firebaseConfig = {
             apiKey: "AIzaSyCdSgohwFoiRjyiHntEVCnsZOof_wtuGck",
             authDomain: "stacks-companion-68225.firebaseapp.com",
             projectId: "stacks-companion-68225",
-            storageBucket: "stacks-companion-68225.appspot.com",
+            storageBucket: "stacks-companion-68225.firebasestorage.app",
             messagingSenderId: "1011290604695",
             appId: "1:1011290604695:web:461e7a9df4855fc81055d2"
         };
 
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // Get form ID from URL
+        // Get form ID and other params from URL
         const urlParams = new URLSearchParams(window.location.search);
         const formId = urlParams.get('id');
+        
+        // Update form with URL parameters
+        document.getElementById('companyName').value = urlParams.get('company') || '';
+        document.getElementById('productName').value = urlParams.get('product') || '';
 
-        // Load form data if exists
+        // Function to edit approver information
+        function editApprover(approverType) {
+            const nameInput = document.querySelector(`input[name="${approverType}"]`);
+            const emailInput = document.querySelector(`input[name="${approverType}Email"]`);
+            
+            nameInput.readOnly = false;
+            emailInput.readOnly = false;
+            
+            nameInput.focus();
+        }
+
+        // Function to handle approval
+        function approve(approverType) {
+            const signatureBox = document.getElementById(`${approverType}Signature`);
+            const statusBadge = signatureBox.previousElementSibling.querySelector('.approval-status');
+            const comments = signatureBox.querySelector('textarea').value;
+            
+            // Update status in UI
+            statusBadge.textContent = 'Approved';
+            statusBadge.classList.remove('status-pending');
+            statusBadge.classList.add('status-approved');
+            
+            // Save to Firestore
+            if (formId) {
+                db.collection('forms').doc(formId).update({
+                    [`approvals.${approverType}`]: {
+                        approved: true,
+                        comments: comments,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    }
+                });
+            }
+            
+            signatureBox.style.display = 'none';
+        }
+
+        // Handle initiate review button
+        document.getElementById('initiateReviewBtn').addEventListener('click', async () => {
+            if (!formId) return;
+
+            try {
+                // Update form status
+                await db.collection('forms').doc(formId).update({
+                    status: 'review_initiated',
+                    initiatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Show all signature boxes
+                document.querySelectorAll('.signature-box').forEach(box => {
+                    box.style.display = 'block';
+                });
+
+                // Disable the initiate button
+                document.getElementById('initiateReviewBtn').disabled = true;
+
+                alert('Review process initiated. Emails will be sent to all approvers.');
+            } catch (error) {
+                console.error('Error initiating review:', error);
+                alert('Error initiating review process. Please try again.');
+            }
+        });
+
+        // Load existing form data
         if (formId) {
             db.collection('forms').doc(formId).get()
                 .then(doc => {
                     if (doc.exists) {
                         const data = doc.data();
+                        
+                        // Update status badge
+                        const status = document.getElementById('formStatus');
+                        status.innerHTML = data.status.toUpperCase();
+                        status.className = `status-badge status-${data.status}`;
+
                         // Populate form fields
                         Object.keys(data).forEach(key => {
-                            const element = document.getElementById(key);
+                            const element = document.querySelector(`[name="${key}"]`);
                             if (element) {
                                 if (element.type === 'checkbox') {
                                     element.checked = data[key];
@@ -476,133 +482,66 @@
                                 }
                             }
                         });
+
+                        // Update approvals if they exist
+                        if (data.approvals) {
+                            Object.keys(data.approvals).forEach(approverType => {
+                                const approval = data.approvals[approverType];
+                                if (approval.approved) {
+                                    const statusBadge = document.querySelector(`#${approverType}Signature`)
+                                        .previousElementSibling
+                                        .querySelector('.approval-status');
+                                    statusBadge.textContent = 'Approved';
+                                    statusBadge.classList.remove('status-pending');
+                                    statusBadge.classList.add('status-approved');
+                                }
+                            });
+                        }
+
+                        // Disable initiate button if review already started
+                        if (data.status === 'review_initiated') {
+                            document.getElementById('initiateReviewBtn').disabled = true;
+                            document.querySelectorAll('.signature-box').forEach(box => {
+                                box.style.display = 'block';
+                            });
+                        }
                     }
                 })
-                .catch(error => console.error("Error loading form:", error));
+                .catch(error => {
+                    console.error("Error getting form:", error);
+                });
         }
 
         // Handle form submission
-        document.getElementById('releaseForm').addEventListener('submit', function(e) {
+        document.getElementById('releaseForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const formData = {
-                department: document.getElementById('department').value,
-                productName: document.getElementById('productName').value,
-                chemicalChar: document.getElementById('chemicalChar').value,
-                matNr: document.getElementById('matNr').value,
-                productGroup: document.getElementById('productGroup').value,
-                ratingClass: document.getElementById('ratingClass').value,
-                goal: document.getElementById('goal').value,
-                manufacturer: document.getElementById('manufacturer').value,
-                productInfo: document.getElementById('productInfo').value,
-                safetyDataSheet: document.getElementById('safetyDataSheet').checked,
-                productQuestionnaire: document.getElementById('productQuestionnaire').checked,
-                hazardousSubstances: document.getElementById('hazardousSubstances').checked,
-                wgk: document.getElementById('wgk').value,
-                submittedAt: new Date().toISOString(),
-                signatures: {
-                    requestor: {
-                        signature: document.getElementById('requestorSignature').value,
-                        date: document.getElementById('requestorDate').value
-                    },
-                    operator: {
-                        signature: document.getElementById('operatorSignature').value,
-                        date: document.getElementById('operatorDate').value
-                    },
-                    procurement: {
-                        signature: document.getElementById('procurementSignature').value,
-                        date: document.getElementById('procurementDate').value
-                    },
-                    incidentOfficer: {
-                        signature: document.getElementById('incidentOfficerSignature').value,
-                        date: document.getElementById('incidentOfficerDate').value
-                    },
-                    waterProtection: {
-                        signature: document.getElementById('waterProtectionSignature').value,
-                        date: document.getElementById('waterProtectionDate').value
-                    },
-                    pqm: {
-                        signature: document.getElementById('pqmSignature').value,
-                        date: document.getElementById('pqmDate').value
-                    },
-                    security: {
-                        signature: document.getElementById('securitySignature').value,
-                        date: document.getElementById('securityDate').value
-                    },
-                    rawMaterial: {
-                        signature: document.getElementById('rawMaterialSignature').value,
-                        date: document.getElementById('rawMaterialDate').value
-                    },
-                    brk: {
-                        signature: document.getElementById('brkSignature').value,
-                        date: document.getElementById('brkDate').value
-                    },
-                    fireProtection: {
-                        signature: document.getElementById('fireProtectionSignature').value,
-                        date: document.getElementById('fireProtectionDate').value
-                    }
-                }
-            };
+            const formData = new FormData(e.target);
+            const formValues = {};
+            formData.forEach((value, key) => {
+                formValues[key] = value;
+            });
 
-            const savePromise = formId ? 
-                db.collection('forms').doc(formId).update(formData) :
-                db.collection('forms').add(formData);
-
-            savePromise
-                .then(() => {
-                    alert('Form submitted successfully!');
-                    loadSurveys(); // Reload surveys after submission
-                })
-                .catch(error => {
-                    console.error("Error saving form:", error);
-                    alert('Error submitting form. Please try again.');
-                });
-        });
-
-        // Function to load and display surveys
-        function loadSurveys() {
-            const surveyGrid = document.getElementById('surveyGrid');
-            surveyGrid.innerHTML = '<div class="loading">Loading surveys...</div>';
-
-            db.collection('forms')
-                .orderBy('submittedAt', 'desc')
-                .get()
-                .then((querySnapshot) => {
-                    surveyGrid.innerHTML = '';
-                    if (querySnapshot.empty) {
-                        surveyGrid.innerHTML = '<div class="no-surveys">No surveys submitted yet</div>';
-                        return;
-                    }
-
-                    querySnapshot.forEach((doc) => {
-                        const data = doc.data();
-                        const surveyCard = document.createElement('div');
-                        surveyCard.className = 'survey-card';
-                        surveyCard.innerHTML = `
-                            <div class="survey-header">
-                                <h4>${data.productName || 'Unnamed Product'}</h4>
-                                <span class="survey-date">${new Date(data.submittedAt).toLocaleDateString()}</span>
-                            </div>
-                            <div class="survey-details">
-                                <p><strong>Department:</strong> ${data.department || 'N/A'}</p>
-                                <p><strong>Material Number:</strong> ${data.matNr || 'N/A'}</p>
-                                <p><strong>Chemical Characterization:</strong> ${data.chemicalChar || 'N/A'}</p>
-                            </div>
-                            <div class="survey-footer">
-                                <button onclick="window.location.href='?id=${doc.id}'" class="view-button">View Details</button>
-                            </div>
-                        `;
-                        surveyGrid.appendChild(surveyCard);
+            try {
+                if (formId) {
+                    await db.collection('forms').doc(formId).update({
+                        ...formValues,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
-                })
-                .catch((error) => {
-                    console.error("Error loading surveys:", error);
-                    surveyGrid.innerHTML = '<div class="error">Error loading surveys. Please try again later.</div>';
-                });
-        }
+                } else {
+                    await db.collection('forms').add({
+                        ...formValues,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        status: 'pending'
+                    });
+                }
 
-        // Load surveys when the page loads
-        loadSurveys();
+                alert('Form saved successfully!');
+            } catch (error) {
+                console.error("Error saving form:", error);
+                alert('Error saving form. Please try again.');
+            }
+        });
     </script>
 </body>
 </html>

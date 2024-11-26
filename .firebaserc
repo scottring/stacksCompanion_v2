@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "stacks-companion-68225"
-  }
+  },
+  "targets": {
+    "stacks-companion-68225": {
+      "hosting": {
+        "internal-review": [
+          "internal-review"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
