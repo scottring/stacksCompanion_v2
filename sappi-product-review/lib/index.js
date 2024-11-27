@@ -28,31 +28,29 @@ const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 // Initialize Firebase Admin
 admin.initializeApp();
-// Field name normalization helper
-const normalizeFieldName = (data, originalField, encodedField) => {
-    const value = data[originalField] || data[encodedField];
-    if (!value) {
-        throw new Error(`Missing required field: ${originalField}`);
+// Helper function to extract field value from multiple possible keys
+function getFieldValue(data, fields) {
+    for (const field of fields) {
+        if (data[field]) {
+            return data[field];
+        }
     }
-    return value;
-};
+    return undefined;
+}
 // Main function
 exports.createFormFromSheet = (0, https_1.onRequest)({
     region: 'europe-west1',
     maxInstances: 10,
-    cors: true // Enable CORS for all origins
+    cors: true
 }, async (request, response) => {
-    // Set CORS headers
     response.set('Access-Control-Allow-Origin', '*');
     response.set('Access-Control-Allow-Methods', 'POST');
     response.set('Access-Control-Allow-Headers', 'Content-Type');
-    // Handle preflight requests
     if (request.method === 'OPTIONS') {
         response.status(204).send('');
         return;
     }
     try {
-        // Only allow POST requests
         if (request.method !== 'POST') {
             response.status(405).json({
                 success: false,
@@ -60,23 +58,71 @@ exports.createFormFromSheet = (0, https_1.onRequest)({
             });
             return;
         }
-        console.log('Received request body:', request.body);
-        // Extract and validate fields with improved error handling
+        // Log complete request details
+        console.log('Request Headers:', request.headers);
+        console.log('Raw Body:', request.rawBody ? request.rawBody.toString() : 'No raw body');
+        console.log('Parsed Body:', request.body);
         try {
             const requestData = request.body;
-            const companyName = normalizeFieldName(requestData, "Sheet's Company Name", "Sheet&#39;s Company Name");
-            const productName = normalizeFieldName(requestData, "Sheet's Product Name", "Sheet&#39;s Product Name");
-            const requesterEmail = normalizeFieldName(requestData, "Sheet Creator's Email", "Sheet Creator&#39;s Email");
-            console.log('Parsed data:', { companyName, productName, requesterEmail });
+            // Try to extract required fields from multiple possible field names
+            const companyName = getFieldValue(requestData, [
+                'company_name',
+                'Company',
+                'Company Name',
+                'CompanyName'
+            ]);
+            const sheetName = getFieldValue(requestData, [
+                'sheet_name',
+                'Sheet',
+                'Sheet Name',
+                'SheetName'
+            ]);
+            const email = getFieldValue(requestData, [
+                'email',
+                'Email',
+                'EmailAddress'
+            ]);
+            // Log extracted values
+            console.log('Extracted values:', {
+                companyName,
+                sheetName,
+                email,
+                allKeys: Object.keys(requestData)
+            });
+            // Validate required fields
+            if (!companyName || !sheetName || !email) {
+                const errorMsg = `Missing required fields. Found: company=${companyName}, sheet=${sheetName}, email=${email}. Available fields: ${Object.keys(requestData).join(', ')}`;
+                console.error(errorMsg);
+                throw new Error(errorMsg);
+            }
             // Generate unique form ID
             const formId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
             // Create form data
             const formData = {
                 companyName,
-                productName,
-                requesterEmail,
+                sheetName,
+                email,
                 status: 'pending',
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                reviewers: {
+                    qualityControl: {
+                        email: '',
+                        status: 'pending'
+                    },
+                    safetyOfficer: {
+                        email: '',
+                        status: 'pending'
+                    },
+                    productionManager: {
+                        email: '',
+                        status: 'pending'
+                    },
+                    environmentalOfficer: {
+                        email: '',
+                        status: 'pending'
+                    }
+                }
             };
             // Save to Firestore
             await admin.firestore().collection('forms').doc(formId).set(formData);
@@ -84,23 +130,28 @@ exports.createFormFromSheet = (0, https_1.onRequest)({
             const formUrl = new URL('https://internal-review.stacksdata.com');
             formUrl.searchParams.set('id', formId);
             formUrl.searchParams.set('company', companyName);
-            formUrl.searchParams.set('product', productName);
-            // Send email using Firebase Extension
+            formUrl.searchParams.set('sheet', sheetName);
+            // Send email notification
             await admin.firestore().collection('mail').add({
-                to: requesterEmail,
+                to: email,
                 message: {
-                    subject: `Review Form Ready - ${productName}`,
+                    subject: `Product Review Form Ready - ${sheetName}`,
                     html: `
             <h2>Product Review Form Ready</h2>
             <p>Hello,</p>
-            <p>Your sheet has been approved and a review form has been created for:</p>
+            <p>A review form has been created for:</p>
             <ul>
               <li>Company: ${companyName}</li>
-              <li>Product: ${productName}</li>
+              <li>Sheet Name: ${sheetName}</li>
             </ul>
-            <p>Please click the link below to access the form:</p>
+            <p>Please click the link below to access and complete the form:</p>
             <p><a href="${formUrl.toString()}">${formUrl.toString()}</a></p>
-            <p>You can review the pre-filled information and set up the approval workflow.</p>
+            <p>You will need to:</p>
+            <ol>
+              <li>Fill in all required product information</li>
+              <li>Upload any necessary documentation</li>
+              <li>Assign reviewers for the approval workflow</li>
+            </ol>
           `
                 }
             });

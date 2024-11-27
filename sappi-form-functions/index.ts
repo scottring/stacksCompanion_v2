@@ -1,11 +1,13 @@
 import { onRequest } from 'firebase-functions/v2/https';
-import { initializeApp } from 'firebase-admin';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import * as sgMail from '@sendgrid/mail';
-import * as cors from 'cors';
+import cors = require('cors');
 
-// Initialize Firebase Admin
-initializeApp();
+// Initialize Firebase Admin only if not already initialized
+if (getApps().length === 0) {
+  initializeApp();
+}
 
 // TypeScript interfaces
 interface SheetRequest {
@@ -15,7 +17,7 @@ interface SheetRequest {
   "Sheet&#39;s Product Name"?: string;
   "Sheet Creator's Email"?: string;
   "Sheet Creator&#39;s Email"?: string;
-  [key: string]: string | undefined;  // Allow for flexible field names
+  [key: string]: string | undefined;
 }
 
 interface FormData {
@@ -24,6 +26,7 @@ interface FormData {
   requesterEmail: string;
   status: 'pending';
   createdAt: FieldValue;
+  metadata?: Record<string, unknown>;
 }
 
 // Field name normalization helper
@@ -32,7 +35,7 @@ const normalizeFieldName = (data: SheetRequest, originalField: string, encodedFi
   if (!value) {
     throw new Error(`Missing required field: ${originalField}`);
   }
-  return value;
+  return value.trim();
 };
 
 // Email template interface
@@ -43,113 +46,172 @@ interface EmailTemplate {
   html: string;
 }
 
+// Constants
+const BASE_URL = 'https://internal-review.stacksdata.com';
+const FROM_EMAIL = 'admin@stacksdata.com';
+
+// Initialize cors middleware
+const corsMiddleware = cors({ origin: true });
+
 // Main function
 export const createFormFromSheet = onRequest({
   region: 'europe-west1',
   maxInstances: 10,
   secrets: ['SENDGRID_API_KEY']
-}, async (req, res) => {
-  const corsHandler = cors({ origin: true });
+}, async (request, response) => {
+  // Handle CORS
+  await new Promise<void>((resolve) => corsMiddleware(request, response, () => resolve()));
+  console.log('request.body', request.body)
 
-  return corsHandler(req, res, async () => {
-    try {
-      // Validate SendGrid configuration
-      if (!process.env.SENDGRID_API_KEY?.startsWith('SG.')) {
-        throw new Error('Invalid SendGrid API key configuration');
-      }
-      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
-      // Validate request method
-      if (req.method !== 'POST') {
-        return res.status(405).json({
-          success: false,
-          message: 'Method not allowed'
-        });
-      }
-
-      // Extract and validate fields with improved error handling
-      try {
-        const requestData = req.body as SheetRequest;
-        const companyName = normalizeFieldName(requestData, "Sheet's Company Name", "Sheet&#39;s Company Name");
-        const productName = normalizeFieldName(requestData, "Sheet's Product Name", "Sheet&#39;s Product Name");
-        const requesterEmail = normalizeFieldName(requestData, "Sheet Creator's Email", "Sheet Creator&#39;s Email");
-
-        // Generate unique form ID
-        const formId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-        
-        // Create form data with proper typing
-        const formData: FormData = {
-          companyName,
-          productName,
-          requesterEmail,
-          status: 'pending',
-          createdAt: FieldValue.serverTimestamp()
-        };
-
-        // Save to Firestore with proper typing
-        const db = getFirestore();
-        await db.collection('forms').doc(formId).set(formData);
-
-        // Generate form URL with encoded parameters
-        const formUrl = new URL('https://internal-review.stacksdata.com');
-        formUrl.searchParams.set('id', formId);
-        formUrl.searchParams.set('company', companyName);
-        formUrl.searchParams.set('product', productName);
-
-        // Create email content with proper typing
-        const emailContent: EmailTemplate = {
-          to: requesterEmail,
-          from: 'admin@stacksdata.com',
-          subject: `Review Form Ready - ${productName}`,
-          html: `
-            <h2>Product Review Form Ready</h2>
-            <p>Hello,</p>
-            <p>Your sheet has been approved and a review form has been created for:</p>
-            <ul>
-              <li>Company: ${companyName}</li>
-              <li>Product: ${productName}</li>
-            </ul>
-            <p>Please click the link below to access the form:</p>
-            <p><a href="${formUrl.toString()}">${formUrl.toString()}</a></p>
-            <p>You can review the pre-filled information and set up the approval workflow.</p>
-          `
-        };
-
-        try {
-          await sgMail.send(emailContent);
-        } catch (emailError) {
-          console.error('SendGrid email failed:', emailError);
-          // Fallback to Firebase Email Extension
-          await db.collection('mail').add({
-            to: requesterEmail,
-            message: {
-              subject: emailContent.subject,
-              html: emailContent.html
-            }
-          });
-        }
-
-        return res.status(200).json({
-          success: true,
-          formUrl: formUrl.toString(),
-          formId,
-          message: 'Form created and email sent successfully'
-        });
-
-      } catch (validationError) {
-        return res.status(400).json({
-          success: false,
-          message: validationError.message
-        });
-      }
-
-    } catch (error) {
-      console.error('Error processing request:', error);
-      return res.status(500).json({
+  try {
+    // Validate SendGrid configuration
+    const sendGridKey = process.env.SENDGRID_API_KEY;
+    if (!sendGridKey?.startsWith('SG.')) {
+      response.status(500).json({
         success: false,
-        message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Invalid SendGrid API key configuration'
       });
+      return;
     }
-  });
+    sgMail.setApiKey(sendGridKey);
+
+    // Validate request method
+    if (request.method !== 'POST') {
+      response.status(405).json({
+        success: false,
+        message: 'Method not allowed'
+      });
+      return;
+    }
+
+    // Extract and validate fields with improved error handling
+    try {
+      const requestData = request.body as SheetRequest;
+      const companyName = normalizeFieldName(requestData, "Sheet's Company Name", "Sheet&#39;s Company Name");
+      const productName = normalizeFieldName(requestData, "Sheet's Product Name", "Sheet&#39;s Product Name");
+      const requesterEmail = normalizeFieldName(requestData, "Sheet Creator's Email", "Sheet Creator&#39;s Email");
+
+      // Validate email format
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requesterEmail)) {
+        response.status(400).json({
+          success: false,
+          message: 'Invalid email format'
+        });
+        return;
+      }
+
+      // Generate unique form ID with timestamp and random string
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const formId = `${timestamp}-${randomString}`;
+      
+      // Create form data
+      const formData: FormData = {
+        companyName,
+        productName,
+        requesterEmail,
+        status: 'pending',
+        createdAt: FieldValue.serverTimestamp(),
+        metadata: {
+          createdVia: 'sheet-integration',
+          timestamp
+        }
+      };
+
+      // Save to Firestore
+      const db = getFirestore();
+      await db.collection('forms').doc(formId).set(formData);
+
+      // Generate form URL with encoded parameters
+      const formUrl = new URL(BASE_URL);
+      formUrl.searchParams.set('id', formId);
+      formUrl.searchParams.set('company', encodeURIComponent(companyName));
+      formUrl.searchParams.set('product', encodeURIComponent(productName));
+      formUrl.searchParams.set('email', encodeURIComponent(requesterEmail));
+      formUrl.searchParams.set('t', timestamp.toString());
+
+      // Create email content
+      const emailContent: EmailTemplate = {
+        to: requesterEmail,
+        from: FROM_EMAIL,
+        subject: `Product Review Form Ready - ${productName}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+              <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #2c3e50;">Product Review Form Ready</h2>
+                <p>Hello,</p>
+                <p>Your sheet has been processed and a review form has been created for:</p>
+                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                  <p style="margin: 5px 0;"><strong>Company:</strong> ${companyName}</p>
+                  <p style="margin: 5px 0;"><strong>Product:</strong> ${productName}</p>
+                </div>
+                <p>Please click the button below to access your form:</p>
+                <div style="text-align: center; margin: 25px 0;">
+                  <a href="${formUrl.toString()}" 
+                     style="background-color: #007bff; 
+                            color: white; 
+                            padding: 12px 24px; 
+                            text-decoration: none; 
+                            border-radius: 5px; 
+                            display: inline-block;">
+                    Access Review Form
+                  </a>
+                </div>
+                <p style="font-size: 0.9em; color: #666;">
+                  If the button doesn't work, you can copy and paste this link into your browser:
+                  <br>
+                  <span style="color: #007bff;">${formUrl.toString()}</span>
+                </p>
+                <hr style="border: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 0.8em; color: #666;">
+                  This is an automated message. Please do not reply to this email.
+                </p>
+              </div>
+            </body>
+          </html>
+        `
+      };
+
+      try {
+        await sgMail.send(emailContent);
+      } catch (emailError) {
+        console.error('SendGrid email failed:', emailError);
+        // Fallback to Firebase Email Extension
+        await db.collection('mail').add({
+          to: requesterEmail,
+          message: {
+            subject: emailContent.subject,
+            html: emailContent.html
+          }
+        });
+      }
+
+      response.status(200).json({
+        success: true,
+        formUrl: formUrl.toString(),
+        formId,
+        message: 'Form created and email sent successfully'
+      });
+      return;
+
+    } catch (validationError) {
+      console.error('Validation error:', validationError);
+      response.status(400).json({
+        success: false,
+        message: validationError instanceof Error ? validationError.message : 'Validation failed'
+      });
+      return;
+    }
+
+  } catch (error) {
+    console.error('Error processing request:', error);
+    response.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    return;
+  }
 });

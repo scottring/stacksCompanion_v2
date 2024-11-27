@@ -6,51 +6,72 @@ admin.initializeApp();
 
 // TypeScript interfaces
 interface SheetRequest {
-  "Sheet's Company Name"?: string;
-  "Sheet&#39;s Company Name"?: string;
-  "Sheet's Product Name"?: string;
-  "Sheet&#39;s Product Name"?: string;
-  "Sheet Creator's Email"?: string;
-  "Sheet Creator&#39;s Email"?: string;
+  // Standard field names
+  company_name?: string;
+  sheet_name?: string;
+  email?: string;
+  
+  // Alternative field names (from Bubble)
+  Company?: string;
+  'Company Name'?: string;
+  CompanyName?: string;
+  Sheet?: string;
+  'Sheet Name'?: string;
+  SheetName?: string;
+  Email?: string;
+  EmailAddress?: string;
+  
   [key: string]: string | undefined;
+}
+
+interface ReviewerSignOff {
+  email: string;
+  status: 'pending' | 'approved' | 'rejected';
+  timestamp?: admin.firestore.Timestamp;
+  comments?: string;
 }
 
 interface FormData {
   companyName: string;
-  productName: string;
-  requesterEmail: string;
-  status: 'pending';
+  sheetName: string;
+  email: string;
+  status: 'pending' | 'in_review' | 'approved' | 'rejected';
   createdAt: admin.firestore.FieldValue;
+  updatedAt: admin.firestore.FieldValue;
+  reviewers: {
+    qualityControl?: ReviewerSignOff;
+    safetyOfficer?: ReviewerSignOff;
+    productionManager?: ReviewerSignOff;
+    environmentalOfficer?: ReviewerSignOff;
+  };
 }
 
-// Field name normalization helper
-const normalizeFieldName = (data: SheetRequest, originalField: string, encodedField: string): string => {
-  const value = data[originalField] || data[encodedField];
-  if (!value) {
-    throw new Error(`Missing required field: ${originalField}`);
+// Helper function to extract field value from multiple possible keys
+function getFieldValue(data: SheetRequest, fields: string[]): string | undefined {
+  for (const field of fields) {
+    if (data[field]) {
+      return data[field];
+    }
   }
-  return value;
-};
+  return undefined;
+}
 
 // Main function
 export const createFormFromSheet = onRequest({
   region: 'europe-west1',
   maxInstances: 10,
-  cors: true // Enable CORS for all origins
+  cors: true
 }, async (request, response) => {
-  // Set CORS headers
   response.set('Access-Control-Allow-Origin', '*');
   response.set('Access-Control-Allow-Methods', 'POST');
   response.set('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle preflight requests
   if (request.method === 'OPTIONS') {
     response.status(204).send('');
     return;
   }
 
   try {
-    // Only allow POST requests
     if (request.method !== 'POST') {
       response.status(405).json({
         success: false,
@@ -59,16 +80,49 @@ export const createFormFromSheet = onRequest({
       return;
     }
 
-    console.log('Received request body:', request.body);
+    // Log complete request details
+    console.log('Request Headers:', request.headers);
+    console.log('Raw Body:', request.rawBody ? request.rawBody.toString() : 'No raw body');
+    console.log('Parsed Body:', request.body);
 
-    // Extract and validate fields with improved error handling
     try {
       const requestData = request.body as SheetRequest;
-      const companyName = normalizeFieldName(requestData, "Sheet's Company Name", "Sheet&#39;s Company Name");
-      const productName = normalizeFieldName(requestData, "Sheet's Product Name", "Sheet&#39;s Product Name");
-      const requesterEmail = normalizeFieldName(requestData, "Sheet Creator's Email", "Sheet Creator&#39;s Email");
+      
+      // Try to extract required fields from multiple possible field names
+      const companyName = getFieldValue(requestData, [
+        'company_name',
+        'Company',
+        'Company Name',
+        'CompanyName'
+      ]);
+      
+      const sheetName = getFieldValue(requestData, [
+        'sheet_name',
+        'Sheet',
+        'Sheet Name',
+        'SheetName'
+      ]);
+      
+      const email = getFieldValue(requestData, [
+        'email',
+        'Email',
+        'EmailAddress'
+      ]);
 
-      console.log('Parsed data:', { companyName, productName, requesterEmail });
+      // Log extracted values
+      console.log('Extracted values:', {
+        companyName,
+        sheetName,
+        email,
+        allKeys: Object.keys(requestData)
+      });
+
+      // Validate required fields
+      if (!companyName || !sheetName || !email) {
+        const errorMsg = `Missing required fields. Found: company=${companyName}, sheet=${sheetName}, email=${email}. Available fields: ${Object.keys(requestData).join(', ')}`;
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+      }
 
       // Generate unique form ID
       const formId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -76,10 +130,29 @@ export const createFormFromSheet = onRequest({
       // Create form data
       const formData: FormData = {
         companyName,
-        productName,
-        requesterEmail,
+        sheetName,
+        email,
         status: 'pending',
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        reviewers: {
+          qualityControl: {
+            email: '',
+            status: 'pending'
+          },
+          safetyOfficer: {
+            email: '',
+            status: 'pending'
+          },
+          productionManager: {
+            email: '',
+            status: 'pending'
+          },
+          environmentalOfficer: {
+            email: '',
+            status: 'pending'
+          }
+        }
       };
 
       // Save to Firestore
@@ -89,24 +162,29 @@ export const createFormFromSheet = onRequest({
       const formUrl = new URL('https://internal-review.stacksdata.com');
       formUrl.searchParams.set('id', formId);
       formUrl.searchParams.set('company', companyName);
-      formUrl.searchParams.set('product', productName);
+      formUrl.searchParams.set('sheet', sheetName);
 
-      // Send email using Firebase Extension
+      // Send email notification
       await admin.firestore().collection('mail').add({
-        to: requesterEmail,
+        to: email,
         message: {
-          subject: `Review Form Ready - ${productName}`,
+          subject: `Product Review Form Ready - ${sheetName}`,
           html: `
             <h2>Product Review Form Ready</h2>
             <p>Hello,</p>
-            <p>Your sheet has been approved and a review form has been created for:</p>
+            <p>A review form has been created for:</p>
             <ul>
               <li>Company: ${companyName}</li>
-              <li>Product: ${productName}</li>
+              <li>Sheet Name: ${sheetName}</li>
             </ul>
-            <p>Please click the link below to access the form:</p>
+            <p>Please click the link below to access and complete the form:</p>
             <p><a href="${formUrl.toString()}">${formUrl.toString()}</a></p>
-            <p>You can review the pre-filled information and set up the approval workflow.</p>
+            <p>You will need to:</p>
+            <ol>
+              <li>Fill in all required product information</li>
+              <li>Upload any necessary documentation</li>
+              <li>Assign reviewers for the approval workflow</li>
+            </ol>
           `
         }
       });

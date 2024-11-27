@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Forms collection rules
+    match /forms/{formId} {
+      // Allow read if user is authenticated and either:
+      // - is the form creator
+      // - is assigned as a reviewer
+      allow read: if request.auth != null && (
+        resource.data.email == request.auth.token.email ||
+        resource.data.reviewers[request.auth.token.email] != null
+      );
+      
+      // Allow create if user is authenticated
+      allow create: if request.auth != null;
+      
+      // Allow update if user is authenticated and either:
+      // - is the form creator
+      // - is assigned as a reviewer (but can only update their review status)
+      allow update: if request.auth != null && (
+        resource.data.email == request.auth.token.email ||
+        (
+          resource.data.reviewers[request.auth.token.email] != null &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['reviewers', 'status', 'updatedAt'])
+        )
+      );
+    }
+    
+    // Mail collection rules (for email notifications)
+    match /mail/{mailId} {
+      allow create: if request.auth != null;
+    }
+  }
+}
