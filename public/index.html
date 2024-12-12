@@ -123,7 +123,7 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label required-field">Product Name</label>
-                        <input type="text" class="form-control" id="productName" name="productName">
+                        <input type="text" class="form-control" id="sheetName" name="sheetName">
                     </div>
                 </div>
             </div>
@@ -395,7 +395,7 @@
         
         // Update form with URL parameters
         document.getElementById('companyName').value = urlParams.get('company') || '';
-        document.getElementById('productName').value = urlParams.get('product') || '';
+        document.getElementById('sheetName').value = urlParams.get('product') || '';
 
         // Function to edit approver information
         function editApprover(approverType) {
@@ -419,13 +419,14 @@
             statusBadge.classList.remove('status-pending');
             statusBadge.classList.add('status-approved');
             
-            // Save to Firestore
+            // Save to Firestore with timestamp
             if (formId) {
                 db.collection('forms').doc(formId).update({
                     [`approvals.${approverType}`]: {
-                        approved: true,
+                        status: 'approved',
                         comments: comments,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        email: document.querySelector(`input[name="${approverType}Email"]`).value
                     }
                 });
             }
@@ -438,10 +439,25 @@
             if (!formId) return;
 
             try {
-                // Update form status
+                // Collect all reviewer emails
+                const reviewers = {
+                    requester: document.querySelector('input[name="requesterEmail"]').value,
+                    operator: document.querySelector('input[name="operatorEmail"]').value,
+                    environmentalOfficer: document.querySelector('input[name="environmentalOfficerEmail"]').value,
+                    safetyOfficer: document.querySelector('input[name="safetyOfficerEmail"]').value
+                };
+
+                // Update form status and reviewers
                 await db.collection('forms').doc(formId).update({
                     status: 'review_initiated',
-                    initiatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    initiatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    reviewers: reviewers,
+                    approvals: {
+                        requester: { status: 'pending' },
+                        operator: { status: 'pending' },
+                        environmentalOfficer: { status: 'pending' },
+                        safetyOfficer: { status: 'pending' }
+                    }
                 });
 
                 // Show all signature boxes

@@ -142,8 +142,8 @@
             </div>
 
             <div class="form-group">
-                <label for="productName">Product Name:</label>
-                <input type="text" id="productName" value="Wireframe" required>
+                <label for="sheetName">Product Name:</label>
+                <input type="text" id="sheetName" required>
             </div>
 
             <div class="form-group">
@@ -231,6 +231,19 @@
             </div>
         </div>
 
+        <div class="form-section">
+            <h3>Reviewers</h3>
+            <div id="reviewersList">
+                <div class="form-group reviewer-entry">
+                    <label for="reviewer1">Reviewer 1:</label>
+                    <input type="email" id="reviewer1" class="reviewer-email" placeholder="Enter reviewer's email">
+                    <label for="reviewer1Name">Name:</label>
+                    <input type="text" id="reviewer1Name" class="reviewer-name" placeholder="Enter reviewer's name">
+                </div>
+            </div>
+            <button type="button" class="action-button" onclick="addReviewer()">Add Another Reviewer</button>
+        </div>
+
         <button type="submit" class="submit-button">Submit for Review</button>
     </form>
 
@@ -257,59 +270,70 @@
         const productName = urlParams.get('product');
         const formId = urlParams.get('id');
 
-        console.log('Form parameters:', { companyName, productName, formId });
+        // Add this debug log
+        console.log('URL Parameters:', {
+            formId,
+            companyName,
+            productName,
+            fullUrl: window.location.href
+        });
 
         // Function to load form data
         async function loadFormData(user) {
             try {
-                console.log('Loading form data for user:', user.email);
+                console.log('Starting loadFormData...');
+                console.log('User:', user.email);
                 console.log('Form ID:', formId);
-
-                // Get a fresh ID token
-                const token = await user.getIdToken(true);
-                console.log('Got fresh token:', !!token);
-
-                // Try to get the form
-                const doc = await db.collection('forms').doc(formId).get();
-                console.log('Form exists:', doc.exists);
-
-                if (doc.exists) {
-                    const data = doc.data();
-                    console.log('Form data:', data);
-
-                    // Pre-fill the form
-                    if (companyName) {
-                        document.getElementById('companyName').value = decodeURIComponent(companyName);
+                
+                if (formId) {
+                    console.log('Attempting to fetch document:', formId);
+                    const doc = await db.collection('forms').doc(formId).get();
+                    
+                    console.log('Document exists:', doc.exists);
+                    if (doc.exists) {
+                        const data = doc.data();
+                        console.log('Document data:', data);
+                        console.log('Document data keys:', Object.keys(data));
+                        populateForm(data);
+                    } else {
+                        console.log('No document found with ID:', formId);
                     }
-                    if (productName) {
-                        document.getElementById('productName').value = decodeURIComponent(productName);
-                    }
-
-                    // Populate form fields from Firestore data
-                    Object.keys(data).forEach(key => {
-                        const element = document.getElementById(key);
-                        if (element) {
-                            if (element.type === 'checkbox') {
-                                element.checked = data[key];
-                            } else {
-                                element.value = data[key];
-                            }
-                        }
-                    });
                 } else {
-                    console.log('No form found with ID:', formId);
-                    alert('Form not found. Please check the URL and try again.');
+                    console.log('No formId provided');
                 }
             } catch (error) {
-                console.error('Error loading form:', error);
-                if (error.code === 'permission-denied') {
-                    alert('You do not have permission to access this form. Please sign in with the correct account.');
-                    await firebase.auth().signOut();
-                    window.location.href = 'index.html';
-                } else {
-                    alert('Error loading form: ' + error.message);
-                }
+                console.error('Error in loadFormData:', error);
             }
+        }
+
+        // Separate function to populate form fields
+        function populateForm(data) {
+            console.log('Starting populateForm...');
+            console.log('Data received:', data);
+            
+            // Basic Information
+            const companyNameInput = document.getElementById('companyName');
+            console.log('Company name element found:', !!companyNameInput);
+            if (companyNameInput) {
+                companyNameInput.value = data.companyName || '';
+                console.log('Set company name to:', companyNameInput.value);
+            }
+            
+            // Product Name
+            const productInput = document.getElementById('sheetName');
+            console.log('Product name element found:', !!productInput);
+            if (productInput) {
+                const productValue = data.sheetName || data.productName || '';
+                productInput.value = productValue;
+                console.log('Set product name to:', productValue);
+            }
+            
+            // Log all form elements for debugging
+            console.log('All form elements:', {
+                companyName: document.getElementById('companyName'),
+                sheetName: document.getElementById('sheetName'),
+                productName: document.getElementById('productName')
+            });
         }
 
         // Add auth state listener
@@ -327,47 +351,47 @@
             }
         });
 
-        // Handle form submission
+        // Update form submission to handle review process
         document.getElementById('releaseForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             try {
                 const user = firebase.auth().currentUser;
-                if (!user) {
-                    throw new Error('You must be logged in to submit the form');
-                }
-
-                // Get fresh token before submitting
-                await user.getIdToken(true);
+                if (!user) throw new Error('You must be logged in to submit the form');
 
                 const formData = {
-                    department: document.getElementById('department').value,
+                    sheetName: document.getElementById('sheetName').value,
                     companyName: document.getElementById('companyName').value,
-                    productName: document.getElementById('productName').value,
-                    description: document.getElementById('description').value,
-                    chemicalChar: document.getElementById('chemicalChar').value,
-                    matNr: document.getElementById('matNr').value,
-                    productGroup: document.getElementById('productGroup').value,
-                    ratingClass: document.getElementById('ratingClass').value,
-                    application: document.getElementById('application').value,
-                    goal: document.getElementById('goal').value,
-                    manufacturer: document.getElementById('manufacturer').value,
-                    productInfo: document.getElementById('productInfo').value,
-                    safetyDataSheet: document.getElementById('safetyDataSheet').checked,
-                    productQuestionnaire: document.getElementById('productQuestionnaire').checked,
-                    hazardousSubstances: document.getElementById('hazardousSubstances').checked,
-                    wgk: document.getElementById('wgk').value,
+                    email: user.email,
+                    status: 'pending_review', // Change status when sent for review
+                    reviewers: [], // Add array for reviewers' emails
+                    signatures: {}, // Add object to track signatures
                     lastModified: firebase.firestore.FieldValue.serverTimestamp(),
-                    lastModifiedBy: user.email
+                    lastModifiedBy: user.email,
+                    // Add other form fields...
                 };
 
+                // Get reviewers' emails from form
+                // This assumes you'll add fields for reviewer emails
+                const reviewerEmails = []; // Get these from form fields
+                formData.reviewers = reviewerEmails;
+
+                let docRef;
                 if (formId) {
-                    await db.collection('forms').doc(formId).update(formData);
+                    docRef = db.collection('forms').doc(formId);
+                    await docRef.update(formData);
                 } else {
-                    await db.collection('forms').add(formData);
+                    docRef = await db.collection('forms').add({
+                        ...formData,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
                 }
 
-                alert('Form submitted successfully!');
+                // Here you would trigger the email sending process
+                // This might be through a Cloud Function or your Zapier integration
+
+                alert('Form submitted and sent for review!');
+                window.location.href = 'dashboard.html';
             } catch (error) {
                 console.error('Error submitting form:', error);
                 alert('Error submitting form: ' + error.message);

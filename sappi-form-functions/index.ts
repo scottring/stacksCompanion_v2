@@ -1,8 +1,11 @@
 import { onRequest } from 'firebase-functions/v2/https';
+import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import * as sgMail from '@sendgrid/mail';
 import cors = require('cors');
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin only if not already initialized
 if (getApps().length === 0) {
@@ -22,18 +25,25 @@ interface SheetRequest {
 
 interface FormData {
   companyName: string;
-  productName: string;
-  requesterEmail: string;
-  status: 'pending' | 'in-progress' | 'completed';
+  sheetName: string;
+  email: string;
+  status: 'pending' | 'in_review' | 'approved' | 'rejected';
   department?: string;
-  reviewers: string[];
-  signatures: Record<string, boolean>;
-  createdAt: FieldValue;
-  metadata?: {
-    createdVia: string;
-    timestamp: number;
-    lastUpdated?: number;
+  reviewers: {
+    qualityControl?: ReviewerSignOff;
+    safetyOfficer?: ReviewerSignOff;
+    productionManager?: ReviewerSignOff;
+    environmentalOfficer?: ReviewerSignOff;
   };
+  createdAt: FieldValue;
+  updatedAt: FieldValue;
+}
+
+interface ReviewerSignOff {
+    email: string;
+    status: 'pending' | 'approved' | 'rejected';
+    timestamp?: admin.firestore.Timestamp;
+    comments?: string;
 }
 
 // Field name normalization helper
@@ -122,18 +132,13 @@ export const createFormFromSheet = onRequest({
       // Create form data
       const formData: FormData = {
         companyName,
-        productName,
-        requesterEmail,
+        sheetName: productName,
+        email: requesterEmail,
         status: 'pending',
         department: requestData.department || 'Unassigned',
-        reviewers: [],
-        signatures: {},
+        reviewers: {},
         createdAt: FieldValue.serverTimestamp(),
-        metadata: {
-          createdVia: 'sheet-integration',
-          timestamp,
-          lastUpdated: timestamp
-        }
+        updatedAt: FieldValue.serverTimestamp()
       };
 
       // Save to Firestore
@@ -232,4 +237,450 @@ export const createFormFromSheet = onRequest({
     });
     return;
   }
+});
+
+export const sendReviewEmails = onDocumentUpdated('forms/{formId}', async (event) => {
+    const newData = event.data.after.data();
+    const previousData = event.data.before.data();
+    const formId = event.params.formId;
+
+    // Get all reviewer roles that were just assigned (email changed from empty to a value)
+    const reviewerRoles = ['qualityControl', 'safetyOfficer', 'productionManager', 'environmentalOfficer'];
+    const newlyAssignedReviewers = reviewerRoles.filter(role => {
+        const prevEmail = previousData.reviewers?.[role]?.email || '';
+        const newEmail = newData.reviewers?.[role]?.email || '';
+        return !prevEmail && newEmail;
+    });
+
+    // Send emails to newly assigned reviewers
+    for (const role of newlyAssignedReviewers) {
+        const reviewerEmail = newData.reviewers[role].email;
+        const roleTitle = role
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase());
+
+        const emailContent = {
+            to: reviewerEmail,
+            from: FROM_EMAIL,
+            subject: `Review Required (${roleTitle}) - ${newData.sheetName}`,
+            html: `
+                <!DOCTYPE html>
+                <html>
+                  <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                      <h2 style="color: #2c3e50;">Review Required - ${roleTitle}</h2>
+                      <p>You have been assigned as the ${roleTitle} reviewer for:</p>
+                      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                        <p style="margin: 5px 0;"><strong>Product:</strong> ${newData.sheetName}</p>
+                        <p style="margin: 5px 0;"><strong>Company:</strong> ${newData.companyName}</p>
+                        <p style="margin: 5px 0;"><strong>Submitted By:</strong> ${newData.email}</p>
+                      </div>
+                      <p>Please review the form and provide your approval or feedback:</p>
+                      <div style="text-align: center; margin: 25px 0;">
+                        <a href="${BASE_URL}/review-form.html?id=${formId}&role=${role}" 
+                           style="background-color: #007bff; 
+                                  color: white; 
+                                  padding: 12px 24px; 
+                                  text-decoration: none; 
+                                  border-radius: 5px; 
+                                  display: inline-block;">
+                          Review Form
+                        </a>
+                      </div>
+                      <hr style="border: 1px solid #eee; margin: 20px 0;">
+                      <p style="font-size: 0.8em; color: #666;">
+                        This is an automated message. Please do not reply to this email.
+                      </p>
+                    </div>
+                  </body>
+                </html>
+            `
+        };
+
+        try {
+            await sgMail.send(emailContent);
+            console.log(`Review notification sent to ${roleTitle} (${reviewerEmail})`);
+        } catch (error) {
+            console.error(`Error sending email to ${roleTitle}:`, error);
+            // Fallback to Firebase Email Extension
+            const db = getFirestore();
+            await db.collection('mail').add({
+                to: reviewerEmail,
+                message: {
+                    subject: emailContent.subject,
+                    html: emailContent.html
+                }
+            });
+        }
+    }
+});
+
+export const updateFormStatus = onDocumentUpdated('forms/{formId}', async (event) => {
+    const newData = event.data.after.data();
+    const previousData = event.data.before.data();
+    const formId = event.params.formId;
+
+    // Get all reviewer statuses
+    const reviewerRoles = ['qualityControl', 'safetyOfficer', 'productionManager', 'environmentalOfficer'];
+    const reviewStatuses = reviewerRoles.map(role => ({
+        role,
+        status: newData.reviewers[role]?.status || 'pending',
+        email: newData.reviewers[role]?.email || ''
+    }));
+
+    // Check if all assigned reviewers have responded
+    const assignedReviewers = reviewStatuses.filter(r => r.email !== '');
+    const pendingReviews = assignedReviewers.filter(r => r.status === 'pending');
+    const rejectedReviews = assignedReviewers.filter(r => r.status === 'rejected');
+
+    let newStatus = newData.status;
+    
+    // Update form status based on review statuses
+    if (rejectedReviews.length > 0) {
+        newStatus = 'rejected';
+    } else if (pendingReviews.length === 0 && assignedReviewers.length > 0) {
+        newStatus = 'approved';
+    } else if (assignedReviewers.length > 0 && pendingReviews.length < assignedReviewers.length) {
+        newStatus = 'in_review';
+    }
+
+    // Only update if status has changed
+    if (newStatus !== newData.status) {
+        const db = getFirestore();
+        await db.collection('forms').doc(formId).update({
+            status: newStatus,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Send notification email to form creator if form is approved or rejected
+        if (newStatus === 'approved' || newStatus === 'rejected') {
+            const emailContent = {
+                to: newData.email,
+                from: FROM_EMAIL,
+                subject: `Form ${newStatus.toUpperCase()} - ${newData.sheetName}`,
+                html: `
+                    <!DOCTYPE html>
+                    <html>
+                      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                          <h2 style="color: #2c3e50;">Form ${newStatus.toUpperCase()}</h2>
+                          <p>Your form has been ${newStatus}:</p>
+                          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                            <p style="margin: 5px 0;"><strong>Product:</strong> ${newData.sheetName}</p>
+                            <p style="margin: 5px 0;"><strong>Company:</strong> ${newData.companyName}</p>
+                          </div>
+                          <h3>Review Status:</h3>
+                          <ul>
+                            ${reviewStatuses
+                                .filter(r => r.email)
+                                .map(r => `
+                                    <li>
+                                        <strong>${r.role.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong> 
+                                        ${r.status.toUpperCase()}
+                                        ${newData.reviewers[r.role]?.comments ? 
+                                            `<br><em>Comments: ${newData.reviewers[r.role].comments}</em>` : 
+                                            ''}
+                                    </li>
+                                `).join('')}
+                          </ul>
+                          <div style="text-align: center; margin: 25px 0;">
+                            <a href="${BASE_URL}/review-form.html?id=${formId}" 
+                               style="background-color: #007bff; 
+                                      color: white; 
+                                      padding: 12px 24px; 
+                                      text-decoration: none; 
+                                      border-radius: 5px; 
+                                      display: inline-block;">
+                              View Form
+                            </a>
+                          </div>
+                        </div>
+                      </body>
+                    </html>
+                `
+            };
+
+            try {
+                await sgMail.send(emailContent);
+            } catch (error) {
+                console.error('Error sending status update email:', error);
+                await db.collection('mail').add({
+                    to: newData.email,
+                    message: {
+                        subject: emailContent.subject,
+                        html: emailContent.html
+                    }
+                });
+            }
+        }
+    }
+});
+
+export const submitReviewDecision = onRequest({
+    region: 'europe-west1',
+    maxInstances: 10,
+    cors: true
+}, async (request, response) => {
+    try {
+        if (request.method !== 'POST') {
+            response.status(405).json({
+                success: false,
+                message: 'Method not allowed'
+            });
+            return;
+        }
+
+        const { formId, role, decision, comments } = request.body;
+        const reviewerEmail = request.body.email;
+
+        if (!formId || !role || !decision || !reviewerEmail) {
+            response.status(400).json({
+                success: false,
+                message: 'Missing required fields'
+            });
+            return;
+        }
+
+        // Validate decision
+        if (!['approved', 'rejected'].includes(decision)) {
+            response.status(400).json({
+                success: false,
+                message: 'Invalid decision. Must be "approved" or "rejected"'
+            });
+            return;
+        }
+
+        // Validate role
+        const validRoles = ['qualityControl', 'safetyOfficer', 'productionManager', 'environmentalOfficer'];
+        if (!validRoles.includes(role)) {
+            response.status(400).json({
+                success: false,
+                message: 'Invalid role'
+            });
+            return;
+        }
+
+        const db = getFirestore();
+        const formRef = db.collection('forms').doc(formId);
+        const formDoc = await formRef.get();
+
+        if (!formDoc.exists) {
+            response.status(404).json({
+                success: false,
+                message: 'Form not found'
+            });
+            return;
+        }
+
+        const formData = formDoc.data();
+        
+        // Verify reviewer is assigned to this role
+        if (formData.reviewers[role]?.email !== reviewerEmail) {
+            response.status(403).json({
+                success: false,
+                message: 'You are not authorized to review this form in this role'
+            });
+            return;
+        }
+
+        // Update the reviewer's status
+        const updateData = {
+            [`reviewers.${role}.status`]: decision,
+            [`reviewers.${role}.timestamp`]: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (comments) {
+            updateData[`reviewers.${role}.comments`] = comments;
+        }
+
+        await formRef.update(updateData);
+
+        response.status(200).json({
+            success: true,
+            message: `Review ${decision} successfully recorded`
+        });
+
+    } catch (error) {
+        console.error('Error processing review decision:', error);
+        response.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Add this new function to handle review notifications
+export const handleReviewNotifications = onDocumentUpdated('forms/{formId}', async (event) => {
+    const newData = event.data.after.data();
+    const previousData = event.data.before.data();
+    const formId = event.params.formId;
+
+    // Check if review was just initiated
+    if (newData.status === 'review_initiated' && previousData.status !== 'review_initiated') {
+        // Send emails to all reviewers
+        const reviewers = newData.reviewers;
+        for (const [role, email] of Object.entries(reviewers)) {
+            if (!email) continue;
+
+            const emailContent = {
+                to: email,
+                from: FROM_EMAIL,
+                subject: `Review Required: ${newData.sheetName}`,
+                html: `
+                    <!DOCTYPE html>
+                    <html>
+                      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                          <h2 style="color: #2c3e50;">Review Required</h2>
+                          <p>You have been assigned as the ${role} reviewer for:</p>
+                          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                            <p style="margin: 5px 0;"><strong>Product:</strong> ${newData.sheetName}</p>
+                            <p style="margin: 5px 0;"><strong>Company:</strong> ${newData.companyName}</p>
+                          </div>
+                          <p>Please review and approve or reject this form.</p>
+                          <div style="text-align: center; margin: 25px 0;">
+                            <a href="${BASE_URL}/index.html?id=${formId}" 
+                               style="background-color: #007bff; 
+                                      color: white; 
+                                      padding: 12px 24px; 
+                                      text-decoration: none; 
+                                      border-radius: 5px; 
+                                      display: inline-block;">
+                              Review Form
+                            </a>
+                          </div>
+                        </div>
+                      </body>
+                    </html>
+                `
+            };
+
+            try {
+                await sgMail.send(emailContent);
+                console.log(`Review notification sent to ${role} (${email})`);
+            } catch (error) {
+                console.error(`Error sending email to ${role}:`, error);
+                // Fallback to Firebase Email Extension
+                const db = getFirestore();
+                await db.collection('mail').add({
+                    to: email,
+                    message: {
+                        subject: emailContent.subject,
+                        html: emailContent.html
+                    }
+                });
+            }
+        }
+    }
+
+    // Check for approval status changes
+    if (newData.approvals) {
+        const newApprovals = Object.entries(newData.approvals)
+            .filter(([_, approval]) => approval.status === 'approved')
+            .length;
+        const previousApprovals = Object.entries(previousData.approvals || {})
+            .filter(([_, approval]) => approval.status === 'approved')
+            .length;
+
+        // If all reviewers have approved, send notification to form creator
+        if (newApprovals === Object.keys(newData.reviewers).length && 
+            newApprovals > previousApprovals) {
+            
+            const emailContent = {
+                to: newData.email,
+                from: FROM_EMAIL,
+                subject: `Form Approved: ${newData.sheetName}`,
+                html: `
+                    <!DOCTYPE html>
+                    <html>
+                      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                          <h2 style="color: #2c3e50;">Form Approved</h2>
+                          <p>Your form has been approved by all reviewers:</p>
+                          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                            <p style="margin: 5px 0;"><strong>Product:</strong> ${newData.sheetName}</p>
+                            <p style="margin: 5px 0;"><strong>Company:</strong> ${newData.companyName}</p>
+                          </div>
+                          <div style="text-align: center; margin: 25px 0;">
+                            <a href="${BASE_URL}/index.html?id=${formId}" 
+                               style="background-color: #007bff; 
+                                      color: white; 
+                                      padding: 12px 24px; 
+                                      text-decoration: none; 
+                                      border-radius: 5px; 
+                                      display: inline-block;">
+                              View Form
+                            </a>
+                          </div>
+                        </div>
+                      </body>
+                    </html>
+                `
+            };
+
+            try {
+                await sgMail.send(emailContent);
+            } catch (error) {
+                console.error('Error sending approval notification:', error);
+                const db = getFirestore();
+                await db.collection('mail').add({
+                    to: newData.email,
+                    message: {
+                        subject: emailContent.subject,
+                        html: emailContent.html
+                    }
+                });
+            }
+        }
+    }
+});
+
+// Add this test function
+export const testSendGrid = onRequest({
+    region: 'europe-west1',
+    maxInstances: 1,
+    secrets: ['SENDGRID_API_KEY']
+}, async (request, response) => {
+    try {
+        // Get SendGrid key and verify it exists
+        const sendGridKey = process.env.SENDGRID_API_KEY;
+        console.log('SendGrid key exists:', !!sendGridKey);
+        console.log('SendGrid key starts with SG.:', sendGridKey?.startsWith('SG.'));
+
+        if (!sendGridKey?.startsWith('SG.')) {
+            throw new Error('Invalid SendGrid API key configuration');
+        }
+
+        // Initialize SendGrid
+        sgMail.setApiKey(sendGridKey);
+
+        // Send test email
+        const testEmail = {
+            to: 'smkaufman+1@gmail.com',
+            from: FROM_EMAIL,
+            subject: 'SendGrid Test Email',
+            html: `
+                <h1>SendGrid Configuration Test</h1>
+                <p>If you receive this email, your SendGrid configuration is working correctly.</p>
+                <p>Timestamp: ${new Date().toISOString()}</p>
+            `
+        };
+
+        await sgMail.send(testEmail);
+        
+        response.status(200).json({
+            success: true,
+            message: 'Test email sent successfully'
+        });
+
+    } catch (error) {
+        console.error('SendGrid test error:', error);
+        response.status(500).json({
+            success: false,
+            message: 'SendGrid test failed',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
 });

@@ -408,7 +408,7 @@
                 const status = getStatus(form);
                 return `
                 <tr>
-                    <td>${form.productName || 'Unnamed Product'}</td>
+                    <td>${form.sheetName || 'Unnamed Product'}</td>
                     <td>${form.department || 'N/A'}</td>
                     <td><span class="status-badge status-${status}">${status}</span></td>
                     <td>
@@ -484,14 +484,6 @@
 
                 try {
                     const formsRef = db.collection('forms');
-                    console.log('Attempting to access forms collection...');
-
-                    formsRef.get().then(snapshot => {
-                        console.log('Initial forms check:', snapshot.size, 'documents found');
-                    }).catch(error => {
-                        console.error('Forms collection access error:', error);
-                    });
-
                     formsRef
                         .orderBy('approvedOn', 'desc')
                         .onSnapshot((snapshot) => {
@@ -505,12 +497,21 @@
                             allForms = snapshot.docs.map(doc => {
                                 const data = doc.data();
                                 console.log('Document ID:', doc.id, 'Data:', data);
+                                
+                                // Convert approvedOn string to Date if it exists
+                                let createdDate = null;
+                                if (data.approvedOn) {
+                                    createdDate = new Date(data.approvedOn);
+                                } else if (data.createdAt?.toDate) {
+                                    createdDate = data.createdAt.toDate();
+                                }
+
                                 return {
                                     id: doc.id,
                                     ...data,
-                                    createdAt: data.createdAt?.toDate(),
-                                    productName: data.productName || data.product_name || 'Unnamed Product',
-                                    department: data.department || 'N/A',
+                                    createdAt: createdDate,
+                                    productName: data.sheetName || data.productName || data.product_name || 'Unnamed Product',
+                                    department: data.companyName || data.department || 'N/A',
                                     reviewers: data.reviewers || [],
                                     signatures: data.signatures || {}
                                 };
@@ -520,22 +521,22 @@
                         }, (error) => {
                             console.error("Error loading forms:", error);
                             tableBody.innerHTML = `
-                            <tr>
-                                <td colspan="6" class="loading">
-                                    Error loading forms: ${error.message}
-                                </td>
-                            </tr>
-                        `;
+                                <tr>
+                                    <td colspan="6" class="loading">
+                                        Error loading forms: ${error.message}
+                                    </td>
+                                </tr>
+                            `;
                         });
                 } catch (error) {
                     console.error('Error in loadForms:', error);
                     tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="loading">
-                            Error initializing forms load: ${error.message}
-                        </td>
-                    </tr>
-                `;
+                        <tr>
+                            <td colspan="6" class="loading">
+                                Error initializing forms load: ${error.message}
+                            </td>
+                        </tr>
+                    `;
                 }
             }
 
