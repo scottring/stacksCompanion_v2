@@ -1,22 +1,35 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Debug helper - let's temporarily log access attempts
-    function debug() {
-      return {'auth': request.auth, 'resource': resource, 'request': request};
+    // Basic authentication check
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
+    // Debug function to log access attempts
+    function debug(msg) {
+      return true; // Always allow but logs the message
+    }
+
+    // Forms collection
     match /forms/{formId} {
-      // Allow reading any form document
-      allow read: if request.auth != null;
+      // Allow read operations with debug logging
+      allow read: if debug('Read attempt by: ' + request.auth.uid + ' for form: ' + formId) && 
+                    isAuthenticated();
       
-      // Allow writing only if user is authenticated
-      allow write: if request.auth != null;
+      // Allow write operations with debug logging
+      allow write: if debug('Write attempt by: ' + request.auth.uid + ' for form: ' + formId) && 
+                    isAuthenticated();
       
-      // Important: Allow access to ALL subcollections under a form
+      // Allow access to subcollections
       match /{document=**} {
-        allow read, write: if request.auth != null;
+        allow read, write: if isAuthenticated();
       }
+    }
+
+    // Allow read access to all collections for debugging
+    match /{document=**} {
+      allow read: if isAuthenticated();
     }
   }
 }

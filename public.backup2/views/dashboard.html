@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<div class="header">
+    <h1>Sappi Review Dashboard</h1>
+</div>
+
+<div class="dashboard-controls">
+    <div class="search-box">
+        <input type="text" id="searchInput" class="form-control" placeholder="Search by product name or department...">
+    </div>
+    <div class="filter-controls">
+        <select id="statusFilter" class="form-select">
+            <option value="all">All Status</option>
+            <option value="pending">PENDING</option>
+            <option value="in-progress">IN-PROGRESS</option>
+            <option value="completed">COMPLETED</option>
+        </select>
+        <select id="sortBy" class="form-select">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="product">Product Name</option>
+        </select>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Product Name</th>
+                <th>Department</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Created Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="formsTableBody">
+            <tr>
+                <td colspan="6" class="text-center">Loading forms...</td>
+            </tr>
+        </tbody>
+    </table>
+</div> 

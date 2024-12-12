@@ -75,7 +75,7 @@ function initDashboard() {
 
     // View form
     window.viewForm = function(formId) {
-        window.location.href = `https://internal-review.web.app/?id=${formId}`;
+        window.location.href = `/?id=${formId}`;
     }
 
     // Update table

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sappi Product Review</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/css/styles.css" rel="stylesheet">
+    <!-- Use only compat version -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/" onclick="router.navigate('/'); return false;">Sappi Product Review</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item auth-only" style="display: none;">
+                        <a class="nav-link" href="/dashboard" 
+                           onclick="router.navigate('/dashboard'); return false;">Dashboard</a>
+                    </li>
+                </ul>
+                <button class="btn btn-outline-light auth-only" 
+                        onclick="handleLogout()" 
+                        style="display: none;">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div id="main-content" class="container mt-4">
+        <div class="text-center">
+            <h1>Welcome to Sappi Product Review</h1>
+            <button onclick="signInWithGoogle()" class="btn btn-primary mt-4">
+                Sign in with Google
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Firebase with your config
+        const firebaseConfig = {
+            apiKey: "AIzaSyCdSgohwFoiRjyiHntEVCnsZOof_wtuGck",
+            authDomain: "stacks-companion-68225.firebaseapp.com",
+            projectId: "stacks-companion-68225",
+            storageBucket: "stacks-companion-68225.appspot.com",
+            messagingSenderId: "1039460737398",
+            appId: "1:1039460737398:web:d6c84fa4f4866d96a4c1f3"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        function signInWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            firebase.auth().signInWithPopup(provider)
+                .then((result) => {
+                    console.log('Google Sign In successful');
+                    window.location.href = 'dashboard.html';
+                })
+                .catch((error) => {
+                    console.error('Google Sign In error:', error);
+                    alert('Failed to sign in with Google: ' + error.message);
+                });
+        }
+
+        // Add auth state listener
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                console.log('User is already signed in, redirecting to dashboard');
+                window.location.href = 'dashboard.html';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sappi Review Dashboard</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    <style>
+        :root {
+            --primary-color: #005B97;
+            --hover-color: #004470;
+            --background-color: #f5f5f5;
+            --text-color: #333;
+            --border-color: #ddd;
+            --success-color: #4CAF50;
+            --warning-color: #FFA726;
+            --pending-color: #90CAF9;
+            --nav-height: 60px;
+            --nav-background: white;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: calc(var(--nav-height) + 20px) 20px 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        .header {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            color: var(--primary-color);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+
+        .search-box {
+            flex: 1;
+            max-width: 300px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .filter-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        select {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .dashboard-table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background-color: var(--pending-color);
+            color: #1565C0;
+        }
+
+        .status-in-progress {
+            background-color: var(--warning-color);
+            color: #E65100;
+        }
+
+        .status-completed {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .action-button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .action-button:hover {
+            background-color: var(--hover-color);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .search-box {
+                max-width: none;
+            }
+
+            .dashboard-table {
+                overflow-x: auto;
+            }
+        }
+
+        .nav-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-logo {
+            color: var(--primary-color);
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-link {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-link:hover {
+            background-color: var(--background-color);
+        }
+
+        .nav-link.active {
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .nav-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--primary-color);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-button:hover {
+            background-color: var(--hover-color);
+        }
+
+        body {
+            padding-top: 80px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="nav-bar">
+        <div class="nav-content">
+            <a href="dashboard.html" class="nav-logo">Sappi Review</a>
+            <div class="nav-links">
+                <a href="dashboard.html" class="nav-link active">Dashboard</a>
+                <a href="create-form.html" class="nav-link">Create New Form</a>
+            </div>
+            <div class="nav-user">
+                <span id="userEmail"></span>
+                <button class="nav-button" onclick="signOut()">Sign Out</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="header">
+        <h1>Sappi Review Dashboard</h1>
+    </div>
+
+    <div class="controls">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search by product name or department...">
+        </div>
+        <div class="filter-controls">
+            <select id="statusFilter">
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+            </select>
+            <select id="sortBy">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="product">Product Name</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="dashboard-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Department</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Created Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="formsTableBody">
+                <tr>
+                    <td colspan="6" class="loading">Loading forms...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Update Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCdSgohwFoiRjyiHntEVCnsZOof_wtuGck",
+            authDomain: "stacks-companion-68225.firebaseapp.com",
+            projectId: "stacks-companion-68225",
+            storageBucket: "stacks-companion-68225.firebasestorage.app",
+            messagingSenderId: "1011290604695",
+            appId: "1:1011290604695:web:461e7a9df4855fc81055d2"
+        };
+
+        // Initialize Firebase
+        try {
+            console.log('Starting Firebase initialization...');
+            
+            // Initialize Firebase
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+                console.log('Firebase app initialized');
+            }
+
+            const db = firebase.firestore();
+            const auth = firebase.auth();
+
+            // Wait for auth state to be ready
+            auth.onAuthStateChanged(async (user) => {
+                console.log('Auth state changed:', user ? `User ${user.email} logged in` : 'No user');
+                
+                if (user) {
+                    try {
+                        // Get fresh token
+                        const token = await user.getIdToken(true);
+                        console.log('Fresh token obtained:', !!token);
+                        
+                        // Test Firestore access
+                        const testRead = await db.collection('forms').limit(1).get();
+                        console.log('Test read successful, documents:', testRead.size);
+                        
+                        document.getElementById('userEmail').textContent = user.email;
+                        loadForms();
+                    } catch (error) {
+                        console.error('Error after authentication:', error);
+                        // If we get a permission error, try to reauthenticate
+                        if (error.code === 'permission-denied') {
+                            console.log('Permission denied, redirecting to login...');
+                            auth.signOut().then(() => {
+                                window.location.href = 'index.html';
+                            });
+                        }
+                    }
+                } else {
+                    console.log('No authenticated user, redirecting to login');
+                    window.location.href = 'index.html';
+                }
+            });
+
+            // State management
+            let allForms = [];
+            let filteredForms = [];
+
+            // Format date
+            function formatDate(timestamp) {
+                if (!timestamp) return 'N/A';
+                const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
+                return new Intl.DateTimeFormat('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }).format(date);
+            }
+
+            // Calculate progress
+            function calculateProgress(form) {
+                if (!form.reviewers) return 0;
+                const totalReviewers = form.reviewers.length;
+                const completedReviews = form.signatures ? Object.keys(form.signatures).length : 0;
+                return (completedReviews / totalReviewers) * 100;
+            }
+
+            // Get status based on progress
+            function getStatus(form) {
+                if (form.status) {
+                    return form.status
+                }
+                const progress = calculateProgress(form);
+                if (progress === 0) return 'pending';
+                if (progress === 100) return 'completed';
+                return 'in-progress';
+            }
+
+            // Render table row
+            function renderTableRow(form) {
+                console.log('Rendering row for form:', form.id);
+                const progress = calculateProgress(form);
+                return `
+                    <tr>
+                        <td>${form.productName || 'Unnamed Product'}</td>
+                        <td>${form.department || 'N/A'}</td>
+                        <td><span class="status-badge status-${form.status}">${form.status}</span></td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            ${progress.toFixed(0)}%
+                        </td>
+                        <td>${formatDate(form.approvedOn)}</td>
+                        <td>
+                            <button class="action-button" onclick="viewForm('${form.id}'); return false;">View???</button>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            // Update the viewForm function to match the exact URL format
+            function viewForm(formId) {
+                const form = allForms.find(f => f.id === formId);
+                if (!form) return;
+                
+                // Use the exact URL format from the screenshot
+                const baseUrl = '';
+                const params = new URLSearchParams({
+                    product: form.sheetName || 'Unnamed Product',
+                    company: form.companyName || 'Sappi Internal Testco',
+                    id: formId
+                }).toString();
+                const newUrl = `${baseUrl}/${params}`;
+                console.log('newUrl:', newUrl);
+                
+                window.location.href = newUrl;
+            }
+
+            // Update table
+            function updateTable() {
+                const tableBody = document.getElementById('formsTableBody');
+                if (filteredForms.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
+                    return;
+                }
+
+                tableBody.innerHTML = filteredForms.map(renderTableRow).join('');
+            }
+
+            // Filter forms
+            function filterForms() {
+                const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+                const statusFilter = document.getElementById('statusFilter').value;
+                const sortBy = document.getElementById('sortBy').value;
+
+                filteredForms = allForms.filter(form => {
+                    const matchesSearch = (form.productName || '').toLowerCase().includes(searchTerm) ||
+                        (form.department || '').toLowerCase().includes(searchTerm);
+                    const matchesStatus = statusFilter === 'all' || getStatus(form) === statusFilter;
+                    return matchesSearch && matchesStatus;
+                });
+
+                // Sort forms
+                filteredForms.sort((a, b) => {
+                    switch (sortBy) {
+                        case 'newest':
+                            return (b.approvedOn || 0) - (a.approvedOn || 0);
+                        case 'oldest':
+                            return (a.approvedOn || 0) - (b.approvedOn || 0);
+                        case 'product':
+                            return (a.productName || '').localeCompare(b.productName || '');
+                        default:
+                            return 0;
+                    }
+                });
+
+                updateTable();
+            }
+
+            // Event listeners
+            document.getElementById('searchInput').addEventListener('input', filterForms);
+            document.getElementById('statusFilter').addEventListener('change', filterForms);
+            document.getElementById('sortBy').addEventListener('change', filterForms);
+
+            // Load forms from Firestore
+            function loadForms() {
+                console.log('Loading forms...');
+                const tableBody = document.getElementById('formsTableBody');
+                tableBody.innerHTML = '<tr><td colspan="6" class="loading">Loading forms...</td></tr>';
+
+                const user = firebase.auth().currentUser;
+                console.log('Current user:', user?.email);
+
+                if (!user) {
+                    console.error('No authenticated user');
+                    tableBody.innerHTML = '<tr><td colspan="6" class="loading">Please log in to view forms</td></tr>';
+                    return;
+                }
+
+                const formsRef = db.collection('forms');
+                
+                // Add real-time listener for forms
+                formsRef
+                    .orderBy('approvedOn', 'desc')
+                    .onSnapshot((snapshot) => {
+                        console.log('Received snapshot with', snapshot.size, 'documents');
+                        
+                        // Log each raw document
+                        snapshot.docs.forEach(doc => {
+                            console.log('Raw document data:', {
+                                id: doc.id,
+                                data: doc.data()
+                            });
+                        });
+
+                        if (snapshot.empty) {
+                            tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
+                            return;
+                        }
+
+                        allForms = snapshot.docs.map(doc => {
+                            const data = doc.data();
+                            const processed = {
+                                id: doc.id,
+                                ...data,
+                                approvedOn: data.approvedOn ? 
+                                    (typeof data.approvedOn === 'string' ? new Date(data.approvedOn) : data.approvedOn.toDate()) 
+                                    : new Date(),
+                                productName: data.sheetName || data.productName || data.product_name || data.companyName || 'Unnamed Product',
+                                department: data.department || data.companyName || 'N/A',
+                                reviewers: data.reviewers || [],
+                                signatures: data.signatures || {},
+                                status: data.status || 'pending'
+                            };
+                            
+                            // Log each processed document
+                            console.log('Processed document:', {
+                                id: doc.id,
+                                raw: data,
+                                processed: processed
+                            });
+                            
+                            return processed;
+                        });
+
+                        console.log('All processed forms:', allForms);
+                        filterForms();
+                    }, (error) => {
+                        console.error("Error loading forms:", error);
+                        console.error('Error details:', {
+                            code: error.code,
+                            message: error.message,
+                            stack: error.stack
+                        });
+                        tableBody.innerHTML = `
+                            <tr>
+                                <td colspan="6" class="loading">
+                                    Error loading forms: ${error.message}
+                                </td>
+                            </tr>
+                        `;
+                    });
+            }
+
+            // Initialize the dashboard
+            loadForms();
+
+            // Add Google Sign In function
+            function signInWithGoogle() {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                firebase.auth().signInWithPopup(provider)
+                    .then((result) => {
+                        console.log('Google Sign In successful');
+                        const user = result.user;
+                        document.getElementById('userEmail').textContent = user.email;
+                        loadForms();
+                    })
+                    .catch((error) => {
+                        console.error('Google Sign In error:', error);
+                        alert('Failed to sign in with Google: ' + error.message);
+                    });
+            }
+
+            // Update the signOut function
+            function signOut() {
+                console.log('Signing out...');
+                firebase.auth().signOut().then(() => {
+                    console.log('Successfully signed out');
+                    window.location.href = 'index.html';
+                }).catch((error) => {
+                    console.error('Error signing out:', error);
+                });
+            }
+
+            // Update the initiateReviewProcess function
+            async function initiateReviewProcess(formId) {
+                console.log('Starting review process for form:', formId);
+                
+                try {
+                    // Get current user and verify authentication
+                    const user = auth.currentUser;
+                    if (!user) {
+                        console.error('No authenticated user');
+                        window.location.href = 'index.html';
+                        return;
+                    }
+
+                    // Get fresh token before proceeding
+                    await user.getIdToken(true);
+                    console.log('Token refreshed for user:', user.email);
+
+                    const formRef = db.collection('forms').doc(formId);
+                    
+                    // Test read access first
+                    const formDoc = await formRef.get();
+                    if (!formDoc.exists) {
+                        throw new Error('Form not found');
+                    }
+                    console.log('Form access verified');
+
+                    // Get reviewer information
+                    const reviewers = [
+                        {
+                            role: 'Requester',
+                            name: document.getElementById('requesterName').value,
+                            email: document.getElementById('requesterEmail').value
+                        },
+                        {
+                            role: 'Operator',
+                            name: document.getElementById('operatorName').value,
+                            email: document.getElementById('operatorEmail').value
+                        },
+                        {
+                            role: 'Environmental Officer',
+                            name: document.getElementById('envOfficerName').value,
+                            email: document.getElementById('envOfficerEmail').value
+                        },
+                        {
+                            role: 'Safety Officer',
+                            name: document.getElementById('safetyOfficerName').value,
+                            email: document.getElementById('safetyOfficerEmail').value
+                        }
+                    ];
+
+                    // Validate reviewer information
+                    if (reviewers.some(r => !r.name || !r.email)) {
+                        throw new Error('All reviewer information must be filled out');
+                    }
+
+                    // Prepare update data
+                    const updateData = {
+                        reviewers: reviewers,
+                        status: 'in-progress',
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+                        emailTrigger: {
+                            type: 'INITIATE_REVIEW',
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                            reviewers: reviewers
+                        }
+                    };
+
+                    console.log('Attempting to update form...');
+                    await formRef.update(updateData);
+                    console.log('Form updated successfully');
+
+                    alert('Review process initiated! Emails will be sent to all reviewers.');
+                    
+                    // Update UI
+                    const initiateBtn = document.getElementById('initiateReviewBtn');
+                    if (initiateBtn) {
+                        initiateBtn.disabled = true;
+                        initiateBtn.textContent = 'Review Process Initiated';
+                    }
+                    
+                } catch (error) {
+                    console.error('Error in initiateReviewProcess:', error);
+                    if (error.code === 'permission-denied') {
+                        console.log('Permission denied, attempting to refresh auth...');
+                        auth.signOut().then(() => {
+                            window.location.href = 'index.html';
+                        });
+                    } else {
+                        alert(`Error: ${error.message}`);
+                    }
+                }
+            }
+
+            // Add event listener for the initiate review button
+            document.getElementById('initiateReviewBtn').addEventListener('click', () => {
+                const formId = new URLSearchParams(window.location.search).get('id');
+                if (formId) {
+                    initiateReviewProcess(formId);
+                } else {
+                    console.error('No form ID found in URL');
+                }
+            });
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
+        }
+    </script>
+</body>
+
+</html>

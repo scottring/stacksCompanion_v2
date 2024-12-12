@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sappi - New Product Release Form</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    <script src="bubble-integration.js"></script>
+    <style>
+        :root {
+            --primary-color: #005B97;
+            --hover-color: #004470;
+            --background-color: #f5f5f5;
+            --text-color: #333;
+            --border-color: #ddd;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 80px 20px 20px; /* Added top padding for nav bar */
+        }
+
+        /* Navigation bar styles */
+        .nav-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-logo {
+            color: #005587;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .nav-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-button {
+            background-color: #005587;
+            color: white;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        body {
+            padding-top: 80px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input[type="text"], select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .checkbox-group {
+            margin: 10px 0;
+        }
+        .submit-button {
+            background-color: #005587;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .submit-button:hover {
+            background-color: #004470;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav-bar">
+        <div class="nav-content">
+            <a href="dashboard.html" class="nav-logo">Sappi Review</a>
+            <div class="nav-user">
+                <span id="userEmail"></span>
+                <button class="nav-button" onclick="signOut()">Sign Out</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="header">
+        <h1>Sappi - Agents Release Form</h1>
+        <h2>Introduction of New Products - Werk Alfeld</h2>
+    </div>
+
+    <form id="releaseForm">
+        <div class="form-section">
+            <h3>Basic Information</h3>
+            <div class="form-group">
+                <label for="department">Department:</label>
+                <input type="text" id="department" value="R&D Department" required>
+            </div>
+
+            <div class="form-group">
+                <label for="companyName">Company Name:</label>
+                <input type="text" id="companyName" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="productName">Product Name:</label>
+                <input type="text" id="productName" value="Wireframe" required>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Product Description:</label>
+                <textarea id="description" required>New innovative wireframe coating technology for enhanced paper strength and durability.</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="chemicalChar">Chemical Characterization:</label>
+                <input type="text" id="chemicalChar">
+            </div>
+
+            <div class="form-group">
+                <label for="matNr">Mat.-Nr. (ECR. Introduction):</label>
+                <input type="text" id="matNr">
+            </div>
+
+            <div class="form-group">
+                <label for="productGroup">Product Group:</label>
+                <select id="productGroup" required>
+                    <option value="">Select product group</option>
+                    <!-- Add groups -->
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="ratingClass">Rating Class:</label>
+                <select id="ratingClass">
+                    <option value="">Select rating class</option>
+                    <!-- Add classes -->
+                </select>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Product Details</h3>
+            <div class="form-group">
+                <label for="application">Application:</label>
+                <textarea id="application" required>Industrial paper manufacturing, specifically for high-stress applications requiring superior tensile strength.</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="goal">Goal of Introduction / Reason for Change:</label>
+                <textarea id="goal" rows="4"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="manufacturer">Manufacturer/Supplier:</label>
+                <input type="text" id="manufacturer">
+            </div>
+
+            <div class="form-group">
+                <label for="productInfo">Product Information:</label>
+                <input type="text" id="productInfo" placeholder="Solids content %, active ingredient content %, density kg/m³">
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Safety & Compliance</h3>
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="safetyDataSheet"> Safety Data Sheet Available
+                </label>
+            </div>
+
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="productQuestionnaire"> Product Questionnaire Required
+                </label>
+            </div>
+
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="hazardousSubstances" checked> Hazardous Substances Questionnaire Required
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label for="wgk">WGK Classification:</label>
+                <select id="wgk" required>
+                    <option value="1">WGK 1 - Low hazard to waters</option>
+                    <option value="2" selected>WGK 2 - Hazard to waters</option>
+                    <option value="3">WGK 3 - Severe hazard to waters</option>
+                </select>
+            </div>
+        </div>
+
+        <button type="submit" class="submit-button">Submit for Review</button>
+    </form>
+
+    <script>
+        // Initialize Firebase with your config
+        const firebaseConfig = {
+            apiKey: "AIzaSyCdSgohwFoiRjyiHntEVCnsZOof_wtuGck",
+            authDomain: "stacks-companion-68225.firebaseapp.com",
+            projectId: "stacks-companion-68225",
+            storageBucket: "stacks-companion-68225.appspot.com",
+            messagingSenderId: "1039460737398",
+            appId: "1:1039460737398:web:d6c84fa4f4866d96a4c1f3"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const companyName = urlParams.get('company');
+        const productName = urlParams.get('product');
+        const formId = urlParams.get('id');
+
+        console.log('Form parameters:', { companyName, productName, formId });
+
+        // Function to load form data
+        async function loadFormData(user) {
+            try {
+                console.log('Loading form data for user:', user.email);
+                console.log('Form ID:', formId);
+
+                // Get a fresh ID token
+                const token = await user.getIdToken(true);
+                console.log('Got fresh token:', !!token);
+
+                // Try to get the form
+                const doc = await db.collection('forms').doc(formId).get();
+                console.log('Form exists:', doc.exists);
+
+                if (doc.exists) {
+                    const data = doc.data();
+                    console.log('Form data:', data);
+
+                    // Pre-fill the form
+                    if (companyName) {
+                        document.getElementById('companyName').value = decodeURIComponent(companyName);
+                    }
+                    if (productName) {
+                        document.getElementById('productName').value = decodeURIComponent(productName);
+                    }
+
+                    // Populate form fields from Firestore data
+                    Object.keys(data).forEach(key => {
+                        const element = document.getElementById(key);
+                        if (element) {
+                            if (element.type === 'checkbox') {
+                                element.checked = data[key];
+                            } else {
+                                element.value = data[key];
+                            }
+                        }
+                    });
+                } else {
+                    console.log('No form found with ID:', formId);
+                    alert('Form not found. Please check the URL and try again.');
+                }
+            } catch (error) {
+                console.error('Error loading form:', error);
+                if (error.code === 'permission-denied') {
+                    alert('You do not have permission to access this form. Please sign in with the correct account.');
+                    await firebase.auth().signOut();
+                    window.location.href = 'index.html';
+                } else {
+                    alert('Error loading form: ' + error.message);
+                }
+            }
+        }
+
+        // Add auth state listener
+        firebase.auth().onAuthStateChanged(async (user) => {
+            console.log('Auth state changed:', user ? `User ${user.email} logged in` : 'No user');
+            
+            if (user) {
+                document.getElementById('userEmail').textContent = user.email;
+                if (formId) {
+                    await loadFormData(user);
+                }
+            } else {
+                console.log('No user logged in, redirecting to login');
+                window.location.href = 'index.html';
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('releaseForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            try {
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    throw new Error('You must be logged in to submit the form');
+                }
+
+                // Get fresh token before submitting
+                await user.getIdToken(true);
+
+                const formData = {
+                    department: document.getElementById('department').value,
+                    companyName: document.getElementById('companyName').value,
+                    productName: document.getElementById('productName').value,
+                    description: document.getElementById('description').value,
+                    chemicalChar: document.getElementById('chemicalChar').value,
+                    matNr: document.getElementById('matNr').value,
+                    productGroup: document.getElementById('productGroup').value,
+                    ratingClass: document.getElementById('ratingClass').value,
+                    application: document.getElementById('application').value,
+                    goal: document.getElementById('goal').value,
+                    manufacturer: document.getElementById('manufacturer').value,
+                    productInfo: document.getElementById('productInfo').value,
+                    safetyDataSheet: document.getElementById('safetyDataSheet').checked,
+                    productQuestionnaire: document.getElementById('productQuestionnaire').checked,
+                    hazardousSubstances: document.getElementById('hazardousSubstances').checked,
+                    wgk: document.getElementById('wgk').value,
+                    lastModified: firebase.firestore.FieldValue.serverTimestamp(),
+                    lastModifiedBy: user.email
+                };
+
+                if (formId) {
+                    await db.collection('forms').doc(formId).update(formData);
+                } else {
+                    await db.collection('forms').add(formData);
+                }
+
+                alert('Form submitted successfully!');
+            } catch (error) {
+                console.error('Error submitting form:', error);
+                alert('Error submitting form: ' + error.message);
+            }
+        });
+
+        function signOut() {
+            firebase.auth().signOut().then(() => {
+                window.location.href = 'index.html';
+            }).catch((error) => {
+                console.error('Error signing out:', error);
+            });
+        }
+    </script>
+</body>
+</html>

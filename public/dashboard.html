@@ -36,7 +36,7 @@
             padding: 20px;
             margin-bottom: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 4
         }
 
         .header h1 {
@@ -81,7 +81,7 @@
             width: 100%;
             background: white;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 4;
             overflow: hidden;
         }
 
@@ -90,6 +90,8 @@
             border-collapse: collapse;
         }
 
+
+        th,
         th,
         td {
             padding: 12px 15px;
@@ -319,7 +321,9 @@
                     <th>Department</th>
                     <th>Status</th>
                     <th>Progress</th>
+
                     <th>Created Date</th>
+
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -332,6 +336,7 @@
     </div>
 
     <script>
+        console.log('abc')
         // Initialize Firebase with your config
         const firebaseConfig = {
             apiKey: "AIzaSyCdSgohwFoiRjyiHntEVCnsZOof_wtuGck",
@@ -344,22 +349,13 @@
 
         try {
             console.log('Initializing Firebase...');
-            // Initialize Firebase if not already initialized
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
+            firebase.initializeApp(firebaseConfig);
             console.log('Firebase initialized successfully');
 
             const db = firebase.firestore();
             const auth = firebase.auth();
 
-            console.log('Firebase initialized:', {
-                apps: firebase.apps.length,
-                auth: !!firebase.auth(),
-                firestore: !!db
-            });
-
-            // Add auth state listener
+            // Test Firebase connection
             auth.onAuthStateChanged((user) => {
                 console.log('Auth state changed:', user ? 'logged in' : 'logged out');
                 if (user) {
@@ -400,9 +396,6 @@
 
             // Get status based on progress
             function getStatus(form) {
-                if (form.status) {
-                    return form.status
-                }
                 const progress = calculateProgress(form);
                 if (progress === 0) return 'pending';
                 if (progress === 100) return 'completed';
@@ -411,34 +404,30 @@
 
             // Render table row
             function renderTableRow(form) {
-                console.log('Rendering row for form:', form.id);
                 const progress = calculateProgress(form);
+                const status = getStatus(form);
                 return `
-                    <tr>
-                        <td>${form.productName || 'Unnamed Product'}</td>
-                        <td>${form.department || 'N/A'}</td>
-                        <td><span class="status-badge status-${form.status}">${form.status}</span></td>
-                        <td>
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${progress}%"></div>
-                            </div>
-                            ${progress.toFixed(0)}%
-                        </td>
-                        <td>${formatDate(form.approvedOn)}</td>
-                        <td>
-                            <button class="action-button" onclick="viewForm('${form.id}'); return false;">View</button>
-                        </td>
-                    </tr>
-                `;
+                <tr>
+                    <td>${form.productName || 'Unnamed Product'}</td>
+                    <td>${form.department || 'N/A'}</td>
+                    <td><span class="status-badge status-${status}">${status}</span></td>
+                    <td>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                        ${progress.toFixed(0)}%
+                    </td>
+                    <td>${formatDate(form.createdAt) || 'N/A'}</td>
+                    <td>
+                        <button class="action-button" onclick="viewForm('${form.id}')">View</button>
+                    </td>
+                </tr>
+            `;
             }
 
-            // Update the viewForm function to navigate to the correct URL
+            // View form
             function viewForm(formId) {
-                const form = allForms.find(f => f.id === formId);
-                if (!form) return;
-                
-                const url = `https://internal-review.web.app/?product=${encodeURIComponent(form.sheetName)}&company=${encodeURIComponent(form.companyName)}&id=${formId}`;
-                window.location.href = url;
+                window.location.href = `review-form.html?id=${formId}&admin=true`;
             }
 
             // Update table
@@ -469,9 +458,9 @@
                 filteredForms.sort((a, b) => {
                     switch (sortBy) {
                         case 'newest':
-                            return (b.approvedOn || 0) - (a.approvedOn || 0);
+                            return (b.createdAt || 0) - (a.createdAt || 0);
                         case 'oldest':
-                            return (a.approvedOn || 0) - (b.approvedOn || 0);
+                            return (a.createdAt || 0) - (b.createdAt || 0);
                         case 'product':
                             return (a.productName || '').localeCompare(b.productName || '');
                         default:
@@ -493,115 +482,68 @@
                 const tableBody = document.getElementById('formsTableBody');
                 tableBody.innerHTML = '<tr><td colspan="6" class="loading">Loading forms...</td></tr>';
 
-                const user = firebase.auth().currentUser;
-                console.log('Current user:', user?.email);
+                try {
+                    const formsRef = db.collection('forms');
+                    console.log('Attempting to access forms collection...');
 
-                if (!user) {
-                    console.error('No authenticated user');
-                    tableBody.innerHTML = '<tr><td colspan="6" class="loading">Please log in to view forms</td></tr>';
-                    return;
-                }
+                    formsRef.get().then(snapshot => {
+                        console.log('Initial forms check:', snapshot.size, 'documents found');
+                    }).catch(error => {
+                        console.error('Forms collection access error:', error);
+                    });
 
-                const formsRef = db.collection('forms');
-                
-                // Add real-time listener for forms
-                formsRef
-                    .orderBy('approvedOn', 'desc')
-                    .onSnapshot((snapshot) => {
-                        console.log('Received snapshot with', snapshot.size, 'documents');
-                        
-                        // Log each raw document
-                        snapshot.docs.forEach(doc => {
-                            console.log('Raw document data:', {
-                                id: doc.id,
-                                data: doc.data()
+                    formsRef
+                        .orderBy('approvedOn', 'desc')
+                        .onSnapshot((snapshot) => {
+                            console.log('Received snapshot with', snapshot.docs.length, 'documents');
+                            if (snapshot.empty) {
+                                console.log('No documents found in forms collection');
+                                tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
+                                return;
+                            }
+
+                            allForms = snapshot.docs.map(doc => {
+                                const data = doc.data();
+                                console.log('Document ID:', doc.id, 'Data:', data);
+                                return {
+                                    id: doc.id,
+                                    ...data,
+                                    createdAt: data.createdAt?.toDate(),
+                                    productName: data.productName || data.product_name || 'Unnamed Product',
+                                    department: data.department || 'N/A',
+                                    reviewers: data.reviewers || [],
+                                    signatures: data.signatures || {}
+                                };
                             });
-                        });
-
-                        if (snapshot.empty) {
-                            tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
-                            return;
-                        }
-
-                        allForms = snapshot.docs.map(doc => {
-                            const data = doc.data();
-                            const processed = {
-                                id: doc.id,
-                                ...data,
-                                approvedOn: data.approvedOn ? 
-                                    (typeof data.approvedOn === 'string' ? new Date(data.approvedOn) : data.approvedOn.toDate()) 
-                                    : new Date(),
-                                productName: data.sheetName || data.productName || data.product_name || data.companyName || 'Unnamed Product',
-                                department: data.department || data.companyName || 'N/A',
-                                reviewers: data.reviewers || [],
-                                signatures: data.signatures || {},
-                                status: data.status || 'pending'
-                            };
-                            
-                            // Log each processed document
-                            console.log('Processed document:', {
-                                id: doc.id,
-                                raw: data,
-                                processed: processed
-                            });
-                            
-                            return processed;
-                        });
-
-                        console.log('All processed forms:', allForms);
-                        filterForms();
-                    }, (error) => {
-                        console.error("Error loading forms:", error);
-                        console.error('Error details:', {
-                            code: error.code,
-                            message: error.message,
-                            stack: error.stack
-                        });
-                        tableBody.innerHTML = `
+                            console.log('Processed forms:', allForms);
+                            filterForms();
+                        }, (error) => {
+                            console.error("Error loading forms:", error);
+                            tableBody.innerHTML = `
                             <tr>
                                 <td colspan="6" class="loading">
                                     Error loading forms: ${error.message}
                                 </td>
                             </tr>
                         `;
-                    });
+                        });
+                } catch (error) {
+                    console.error('Error in loadForms:', error);
+                    tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="loading">
+                            Error initializing forms load: ${error.message}
+                        </td>
+                    </tr>
+                `;
+                }
             }
 
             // Initialize the dashboard
             loadForms();
-
-            // Add Google Sign In function
-            function signInWithGoogle() {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                firebase.auth().signInWithPopup(provider)
-                    .then((result) => {
-                        console.log('Google Sign In successful');
-                        const user = result.user;
-                        document.getElementById('userEmail').textContent = user.email;
-                        loadForms();
-                    })
-                    .catch((error) => {
-                        console.error('Google Sign In error:', error);
-                        alert('Failed to sign in with Google: ' + error.message);
-                    });
-            }
-
-            // Update the signOut function
-            function signOut() {
-                firebase.auth().signOut()
-                    .then(() => {
-                        console.log('User signed out successfully');
-                        document.getElementById('userEmail').textContent = '';
-                        window.location.href = 'index.html';
-                    })
-                    .catch((error) => {
-                        console.error('Sign out error:', error);
-                        alert('Failed to sign out: ' + error.message);
-                    });
-            }
         } catch (error) {
             console.error('Firebase initialization error:', error);
-        }
+        } 
     </script>
 </body>
 
