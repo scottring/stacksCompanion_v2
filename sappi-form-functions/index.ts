@@ -24,9 +24,16 @@ interface FormData {
   companyName: string;
   productName: string;
   requesterEmail: string;
-  status: 'pending';
+  status: 'pending' | 'in-progress' | 'completed';
+  department?: string;
+  reviewers: string[];
+  signatures: Record<string, boolean>;
   createdAt: FieldValue;
-  metadata?: Record<string, unknown>;
+  metadata?: {
+    createdVia: string;
+    timestamp: number;
+    lastUpdated?: number;
+  };
 }
 
 // Field name normalization helper
@@ -52,6 +59,13 @@ const FROM_EMAIL = 'admin@stacksdata.com';
 
 // Initialize cors middleware
 const corsMiddleware = cors({ origin: true });
+
+// Add these test email patterns to your validation
+const isTestEmail = (email: string): boolean => {
+  return email.endsWith('@example.com') || 
+         email.includes('+test@') ||
+         email.endsWith('@mailinator.com');
+};
 
 // Main function
 export const createFormFromSheet = onRequest({
@@ -92,10 +106,10 @@ export const createFormFromSheet = onRequest({
       const requesterEmail = normalizeFieldName(requestData, "Sheet Creator's Email", "Sheet Creator&#39;s Email");
 
       // Validate email format
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requesterEmail)) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(requesterEmail) || !isTestEmail(requesterEmail)) {
         response.status(400).json({
           success: false,
-          message: 'Invalid email format'
+          message: 'Invalid or non-test email format'
         });
         return;
       }
@@ -111,10 +125,14 @@ export const createFormFromSheet = onRequest({
         productName,
         requesterEmail,
         status: 'pending',
+        department: requestData.department || 'Unassigned',
+        reviewers: [],
+        signatures: {},
         createdAt: FieldValue.serverTimestamp(),
         metadata: {
           createdVia: 'sheet-integration',
-          timestamp
+          timestamp,
+          lastUpdated: timestamp
         }
       };
 

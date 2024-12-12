@@ -38,3 +38,14 @@ This application can be deployed to Render.com:
 - `POST /api/create-form` - Create a new form instance
 - `POST /api/submit-form` - Submit form data
 # stacksCompanion_v2
+
+## Testing Email Integration
+
+For testing purposes, use these email patterns:
+- Mailinator: `anything@mailinator.com`
+- Plus addressing: `email+test@mailinator.com`
+- Example domain: `test@example.com`
+
+Access test emails at: mailinator.com/v4/public/inboxes/[username]
+
+Note: Production deployments should restrict to verified email domains.
