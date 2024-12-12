@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -35,7 +36,7 @@
             padding: 20px;
             margin-bottom: 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .header h1 {
@@ -80,7 +81,7 @@
             width: 100%;
             background: white;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             overflow: hidden;
         }
 
@@ -89,7 +90,8 @@
             border-collapse: collapse;
         }
 
-        th, td {
+        th,
+        td {
             padding: 12px 15px;
             text-align: left;
             border-bottom: 1px solid var(--border-color);
@@ -102,7 +104,7 @@
         }
 
         tr:hover {
-            background-color: rgba(0,0,0,0.02);
+            background-color: rgba(0, 0, 0, 0.02);
         }
 
         .status-badge {
@@ -186,7 +188,7 @@
             right: 0;
             height: var(--nav-height);
             background-color: var(--nav-background);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             z-index: 1000;
         }
 
@@ -264,11 +266,13 @@
             }
 
             #userEmail {
-                display: none; /* Hide email on mobile to save space */
+                display: none;
+                /* Hide email on mobile to save space */
             }
         }
     </style>
 </head>
+
 <body>
     <div class="nav-bar">
         <div class="nav-content">
@@ -340,13 +344,16 @@
 
         try {
             console.log('Initializing Firebase...');
-            firebase.initializeApp(firebaseConfig);
+            // Initialize Firebase if not already initialized
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
             console.log('Firebase initialized successfully');
-            
+
             const db = firebase.firestore();
             const auth = firebase.auth();
-            
-            // Test Firebase connection
+
+            // Add auth state listener
             auth.onAuthStateChanged((user) => {
                 console.log('Auth state changed:', user ? 'logged in' : 'logged out');
                 if (user) {
@@ -360,49 +367,49 @@
             }, (error) => {
                 console.error('Auth state change error:', error);
             });
+            // State management
+            let allForms = [];
+            let filteredForms = [];
 
-        } catch (error) {
-            console.error('Firebase initialization error:', error);
-        }
+            // Format date
+            function formatDate(timestamp) {
+                if (!timestamp) return 'N/A';
+                const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
+                return new Intl.DateTimeFormat('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }).format(date);
+            }
 
-        // State management
-        let allForms = [];
-        let filteredForms = [];
+            // Calculate progress
+            function calculateProgress(form) {
+                if (!form.reviewers) return 0;
+                const totalReviewers = form.reviewers.length;
+                const completedReviews = form.signatures ? Object.keys(form.signatures).length : 0;
+                return (completedReviews / totalReviewers) * 100;
+            }
 
-        // Format date
-        function formatDate(timestamp) {
-            if (!timestamp) return 'N/A';
-            const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
-            return new Intl.DateTimeFormat('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            }).format(date);
-        }
+            // Get status based on progress
+            function getStatus(form) {
+                if (form.status) {
+                    return form.status
+                }
+                const progress = calculateProgress(form);
+                if (progress === 0) return 'pending';
+                if (progress === 100) return 'completed';
+                return 'in-progress';
+            }
 
-        // Calculate progress
-        function calculateProgress(form) {
-            if (!form.reviewers) return 0;
-            const totalReviewers = form.reviewers.length;
-            const completedReviews = form.signatures ? Object.keys(form.signatures).length : 0;
-            return (completedReviews / totalReviewers) * 100;
-        }
-
-        // Get status based on progress
-        function getStatus(form) {
-            const progress = calculateProgress(form);
-            if (progress === 0) return 'pending';
-            if (progress === 100) return 'completed';
-            return 'in-progress';
-        }
-
-        // Render table row
-        function renderTableRow(form) {
-            const progress = calculateProgress(form);
-            const status = getStatus(form);
-            return `
+            // Render table row
+            function renderTableRow(form) {
+                console.log('form.status', form.status)
+                const progress = calculateProgress(form);
+                const status = getStatus(form);
+                console.log('status', status)
+                return `
                 <tr>
                     <td>${form.productName || 'Unnamed Product'}</td>
                     <td>${form.department || 'N/A'}</td>
@@ -413,130 +420,175 @@
                         </div>
                         ${progress.toFixed(0)}%
                     </td>
-                    <td>${formatDate(form.createdAt) || 'N/A'}</td>
+                    <td>${formatDate(form.approvedOn) || 'N/A'}</td>
                     <td>
                         <button class="action-button" onclick="viewForm('${form.id}')">View</button>
                     </td>
                 </tr>
             `;
-        }
-
-        // View form
-        function viewForm(formId) {
-            window.location.href = `review-form.html?id=${formId}&admin=true`;
-        }
-
-        // Update table
-        function updateTable() {
-            const tableBody = document.getElementById('formsTableBody');
-            if (filteredForms.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
-                return;
             }
-            
-            tableBody.innerHTML = filteredForms.map(renderTableRow).join('');
-        }
 
-        // Filter forms
-        function filterForms() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const statusFilter = document.getElementById('statusFilter').value;
-            const sortBy = document.getElementById('sortBy').value;
+            // View form
+            function viewForm(formId) {
+                window.location.href = `review-form.html?id=${formId}&admin=true`;
+            }
 
-            filteredForms = allForms.filter(form => {
-                const matchesSearch = (form.productName || '').toLowerCase().includes(searchTerm) ||
-                                   (form.department || '').toLowerCase().includes(searchTerm);
-                const matchesStatus = statusFilter === 'all' || getStatus(form) === statusFilter;
-                return matchesSearch && matchesStatus;
-            });
-
-            // Sort forms
-            filteredForms.sort((a, b) => {
-                switch (sortBy) {
-                    case 'newest':
-                        return (b.createdAt || 0) - (a.createdAt || 0);
-                    case 'oldest':
-                        return (a.createdAt || 0) - (b.createdAt || 0);
-                    case 'product':
-                        return (a.productName || '').localeCompare(b.productName || '');
-                    default:
-                        return 0;
+            // Update table
+            function updateTable() {
+                const tableBody = document.getElementById('formsTableBody');
+                if (filteredForms.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
+                    return;
                 }
-            });
 
-            updateTable();
-        }
+                tableBody.innerHTML = filteredForms.map(renderTableRow).join('');
+            }
 
-        // Event listeners
-        document.getElementById('searchInput').addEventListener('input', filterForms);
-        document.getElementById('statusFilter').addEventListener('change', filterForms);
-        document.getElementById('sortBy').addEventListener('change', filterForms);
+            // Filter forms
+            function filterForms() {
+                const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+                const statusFilter = document.getElementById('statusFilter').value;
+                const sortBy = document.getElementById('sortBy').value;
 
-        // Load forms from Firestore
-        function loadForms() {
-            console.log('Loading forms...');
-            const tableBody = document.getElementById('formsTableBody');
-            tableBody.innerHTML = '<tr><td colspan="6" class="loading">Loading forms...</td></tr>';
-
-            try {
-                const formsRef = db.collection('forms');
-                console.log('Attempting to access forms collection...');
-                
-                formsRef.get().then(snapshot => {
-                    console.log('Initial forms check:', snapshot.size, 'documents found');
-                }).catch(error => {
-                    console.error('Forms collection access error:', error);
+                filteredForms = allForms.filter(form => {
+                    const matchesSearch = (form.productName || '').toLowerCase().includes(searchTerm) ||
+                        (form.department || '').toLowerCase().includes(searchTerm);
+                    const matchesStatus = statusFilter === 'all' || getStatus(form) === statusFilter;
+                    return matchesSearch && matchesStatus;
                 });
 
-                formsRef
-                    .orderBy('createdAt', 'desc')
-                    .onSnapshot((snapshot) => {
-                        console.log('Received snapshot with', snapshot.docs.length, 'documents');
-                        if (snapshot.empty) {
-                            console.log('No documents found in forms collection');
-                            tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
-                            return;
-                        }
-                        
-                        allForms = snapshot.docs.map(doc => {
-                            const data = doc.data();
-                            console.log('Document ID:', doc.id, 'Data:', data);
-                            return {
-                                id: doc.id,
-                                ...data,
-                                createdAt: data.createdAt?.toDate(),
-                                productName: data.productName || data.product_name || 'Unnamed Product',
-                                department: data.department || 'N/A',
-                                reviewers: data.reviewers || [],
-                                signatures: data.signatures || {}
-                            };
+                // Sort forms
+                filteredForms.sort((a, b) => {
+                    switch (sortBy) {
+                        case 'newest':
+                            return (b.approvedOn || 0) - (a.approvedOn || 0);
+                        case 'oldest':
+                            return (a.approvedOn || 0) - (b.approvedOn || 0);
+                        case 'product':
+                            return (a.productName || '').localeCompare(b.productName || '');
+                        default:
+                            return 0;
+                    }
+                });
+
+                updateTable();
+            }
+
+            // Event listeners
+            document.getElementById('searchInput').addEventListener('input', filterForms);
+            document.getElementById('statusFilter').addEventListener('change', filterForms);
+            document.getElementById('sortBy').addEventListener('change', filterForms);
+
+            // Load forms from Firestore
+            function loadForms() {
+                console.log('Loading forms...');
+                const tableBody = document.getElementById('formsTableBody');
+                tableBody.innerHTML = '<tr><td colspan="6" class="loading">Loading forms...</td></tr>';
+
+                const user = firebase.auth().currentUser;
+                console.log('user', user)
+                if (!user) {
+                    console.error('No authenticated user found');
+                    tableBody.innerHTML = '<tr><td colspan="6" class="loading">Please log in to view forms</td></tr>';
+                    return;
+                }
+
+                try {
+                    const formsRef = db.collection('forms');
+
+                    const allFormsTest = formsRef.get().then((querySnapshot) => {
+                        querySnapshot.forEach((doc) => {
+                            console.log(doc.id, " => ", doc.data());
                         });
-                        console.log('Processed forms:', allForms);
-                        filterForms();
-                    }, (error) => {
-                        console.error("Error loading forms:", error);
-                        tableBody.innerHTML = `
+                    })
+
+                    // Add a real-time listener for forms
+                    formsRef
+                        .orderBy('approvedOn', 'desc')
+                        .onSnapshot((snapshot) => {
+                            console.log('Received snapshot with', snapshot.size, 'documents');
+
+                            if (snapshot.empty) {
+                                tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
+                                return;
+                            }
+
+                            allForms = snapshot.docs.map(doc => {
+                                const data = doc.data();
+                                const entity = {
+                                    id: doc.id,
+                                    ...data,
+                                    approvedOn: data.approvedOn ? new Date(data.approvedOn) : new Date(),
+                                    productName: data.sheetName || data.productName || data.product_name || 'Unnamed Product',
+                                    department: data.department || 'N/A',
+                                    reviewers: data.reviewers || [],
+                                    signatures: data.signatures || {},
+                                    status: data.status,
+                                };
+                                console.log('entity', entity)
+                                return entity
+                            });
+
+                            console.log('Processed forms:', allForms);
+                            filterForms();
+                        }, (error) => {
+                            console.error("Error loading forms:", error);
+                            tableBody.innerHTML = `
                             <tr>
                                 <td colspan="6" class="loading">
                                     Error loading forms: ${error.message}
                                 </td>
                             </tr>
                         `;
-                    });
-            } catch (error) {
-                console.error('Error in loadForms:', error);
-                tableBody.innerHTML = `
+                        });
+                } catch (error) {
+                    console.error('Error in loadForms:', error);
+                    tableBody.innerHTML = `
                     <tr>
                         <td colspan="6" class="loading">
                             Error initializing forms load: ${error.message}
                         </td>
                     </tr>
                 `;
+                }
             }
-        }
 
-        // Initialize the dashboard
-        loadForms();
+            // Initialize the dashboard
+            loadForms();
+
+            // Add Google Sign In function
+            function signInWithGoogle() {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                firebase.auth().signInWithPopup(provider)
+                    .then((result) => {
+                        console.log('Google Sign In successful');
+                        const user = result.user;
+                        document.getElementById('userEmail').textContent = user.email;
+                        loadForms();
+                    })
+                    .catch((error) => {
+                        console.error('Google Sign In error:', error);
+                        alert('Failed to sign in with Google: ' + error.message);
+                    });
+            }
+
+            // Update the signOut function
+            function signOut() {
+                firebase.auth().signOut()
+                    .then(() => {
+                        console.log('User signed out successfully');
+                        document.getElementById('userEmail').textContent = '';
+                        window.location.href = 'index.html';
+                    })
+                    .catch((error) => {
+                        console.error('Sign out error:', error);
+                        alert('Failed to sign out: ' + error.message);
+                    });
+            }
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
+        }
     </script>
 </body>
+
 </html>

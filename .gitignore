@@ -97,3 +97,6 @@ out/
 .prettierrc
 + eslint.config.js
 + .eslintignore
+
+# Vite configuration
+.vite/

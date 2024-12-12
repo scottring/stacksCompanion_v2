@@ -3,376 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Product Release Form</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            padding: 20px;
-        }
-        .form-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .form-section {
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #eee;
-        }
-        .section-title {
-            color: #2c3e50;
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-        .required-field::after {
-            content: "*";
-            color: red;
-            margin-left: 4px;
-        }
-        .checkbox-group {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        .checkbox-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .status-badge {
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: 500;
-            display: inline-block;
-        }
-        .status-pending {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        .status-reviewed {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .approver-section {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-        }
-        .approver-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .edit-icon {
-            cursor: pointer;
-            color: #007bff;
-        }
-        .edit-icon:hover {
-            color: #0056b3;
-        }
-        .signature-box {
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-top: 10px;
-            border-radius: 5px;
-        }
-        .approval-status {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            margin-left: 10px;
-        }
-        .status-approved {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .initiate-review-btn {
-            margin-bottom: 20px;
-        }
-        .form-header {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-    </style>
+    <title>Sappi Product Review</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/css/styles.css" rel="stylesheet">
+    <!-- Use only compat version -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-    <div class="form-container">
-        <div class="text-center mb-4">
-            <h2>Product Release Form</h2>
-            <div class="status-badge status-pending" id="formStatus">Pending Review</div>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/" onclick="router.navigate('/'); return false;">Sappi Product Review</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item auth-only" style="display: none;">
+                        <a class="nav-link" href="/dashboard" 
+                           onclick="router.navigate('/dashboard'); return false;">Dashboard</a>
+                    </li>
+                </ul>
+                <button class="btn btn-outline-light auth-only" 
+                        onclick="handleLogout()" 
+                        style="display: none;">Logout</button>
+            </div>
         </div>
+    </nav>
 
-        <form id="releaseForm">
-            <!-- Basic Information Section -->
-            <div class="form-section">
-                <h4 class="section-title">Basic Information</h4>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label required-field">Company Name</label>
-                        <input type="text" class="form-control" id="companyName" name="companyName">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label required-field">Product Name</label>
-                        <input type="text" class="form-control" id="productName" name="productName">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Department Information Section -->
-            <div class="form-section">
-                <h4 class="section-title">Department Information</h4>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label required-field">Requesting Department</label>
-                        <select class="form-control" name="requesting_department" required>
-                            <option value="">Select department</option>
-                            <option value="Production">Production</option>
-                            <option value="Quality Control">Quality Control</option>
-                            <option value="Research & Development">Research & Development</option>
-                            <option value="Technical Support">Technical Support</option>
-                            <option value="Engineering">Engineering</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label required-field">Department</label>
-                        <select class="form-control" name="department" required>
-                            <option value="">Select department</option>
-                            <option value="Paper Production">Paper Production</option>
-                            <option value="Coating">Coating</option>
-                            <option value="Converting">Converting</option>
-                            <option value="Laboratory">Laboratory</option>
-                            <option value="Maintenance">Maintenance</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Product Details Section -->
-            <div class="form-section">
-                <h4 class="section-title">Product Details</h4>
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label required-field">Product Group</label>
-                        <select class="form-control" name="product_group" required>
-                            <option value="">Select product group</option>
-                            <option value="Raw Materials">Raw Materials</option>
-                            <option value="Chemical Additives">Chemical Additives</option>
-                            <option value="Coating Materials">Coating Materials</option>
-                            <option value="Process Aids">Process Aids</option>
-                            <option value="Packaging Materials">Packaging Materials</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label required-field">Rating Class</label>
-                        <select class="form-control" name="rating_class" required>
-                            <option value="">Select rating class</option>
-                            <option value="Class A - Critical">Class A - Critical</option>
-                            <option value="Class B - Major">Class B - Major</option>
-                            <option value="Class C - Minor">Class C - Minor</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label required-field">Mat.-Nr. (ECR. Introduction)</label>
-                        <input type="text" class="form-control" name="mat_nr" required>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-12 mb-3">
-                        <label class="form-label required-field">Goal of Introduction / Reason for Change</label>
-                        <textarea class="form-control" name="goal_of_introduction" rows="3" required></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Product Information Section -->
-            <div class="form-section">
-                <h4 class="section-title">Additional Information</h4>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label required-field">Manufacturer/Supplier</label>
-                        <input type="text" class="form-control" name="manufacturer_supplier" required>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Product Information</label>
-                        <input type="text" class="form-control" name="product_information" 
-                               placeholder="Solids content %, active ingredient content %, density kg/m³">
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Use / Substitute For</label>
-                        <input type="text" class="form-control" name="substitute_for" 
-                               placeholder="Alternative product to">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label required-field">Packaging</label>
-                        <select class="form-control" name="packaging" required multiple>
-                            <option value="Pallet">Pallet</option>
-                            <option value="Disposable">Disposable</option>
-                            <option value="Foil">Foil</option>
-                            <option value="Metal">Metal</option>
-                            <option value="Glass">Glass</option>
-                            <option value="Small Container">Small Container</option>
-                            <option value="Big Bag/TBC">Big Bag/TBC</option>
-                            <option value="Barrel">Barrel</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Safety and Compliance Section -->
-            <div class="form-section">
-                <h4 class="section-title">Safety and Compliance</h4>
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="safety_data_sheet" id="safetyDataSheet">
-                            <label class="form-check-label" for="safetyDataSheet">
-                                Safety Data Sheet Available
-                            </label>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="product_questionnaire" id="productQuestionnaire">
-                            <label class="form-check-label" for="productQuestionnaire">
-                                Product Questionnaire Required
-                            </label>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="hazardous_substance" id="hazardousSubstance">
-                            <label class="form-check-label" for="hazardousSubstance">
-                                Hazardous Substance Questionnaire Required
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">WGK Classification</label>
-                        <select class="form-control" name="wgk_classification">
-                            <option value="">Select WGK classification</option>
-                            <option value="1">WGK 1</option>
-                            <option value="2">WGK 2</option>
-                            <option value="3">WGK 3</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">VAwS Cadastre</label>
-                        <input type="text" class="form-control" name="vaws_cadastre" 
-                               placeholder="No., correction sheet sent to P&U?">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Approval Section -->
-            <div class="form-section">
-                <h4 class="section-title">Approval Information</h4>
-                <div id="initiateReviewSection" class="text-center mb-4">
-                    <button type="button" class="btn btn-primary btn-lg" id="initiateReviewBtn">
-                        Initiate Review Process
-                    </button>
-                </div>
-                
-                <!-- Requester -->
-                <div class="approver-section">
-                    <div class="approver-info">
-                        <div class="flex-grow-1">
-                            <label class="form-label">Requester</label>
-                            <div class="d-flex align-items-center">
-                                <input type="text" class="form-control" name="requester" value="John Smith" readonly>
-                                <input type="email" class="form-control ms-2" name="requesterEmail" value="john.smith@company.com" readonly>
-                                <i class="fas fa-edit edit-icon ms-2" onclick="editApprover('requester')"></i>
-                            </div>
-                        </div>
-                        <div class="approval-status status-pending">Pending</div>
-                    </div>
-                    <div class="signature-box" id="requesterSignature" style="display: none;">
-                        <textarea class="form-control" placeholder="Add comments..."></textarea>
-                        <button type="button" class="btn btn-success mt-2" onclick="approve('requester')">Approve</button>
-                    </div>
-                </div>
-
-                <!-- Operator -->
-                <div class="approver-section">
-                    <div class="approver-info">
-                        <div class="flex-grow-1">
-                            <label class="form-label">Operator</label>
-                            <div class="d-flex align-items-center">
-                                <input type="text" class="form-control" name="operator" value="Jane Doe" readonly>
-                                <input type="email" class="form-control ms-2" name="operatorEmail" value="jane.doe@company.com" readonly>
-                                <i class="fas fa-edit edit-icon ms-2" onclick="editApprover('operator')"></i>
-                            </div>
-                        </div>
-                        <div class="approval-status status-pending">Pending</div>
-                    </div>
-                    <div class="signature-box" id="operatorSignature" style="display: none;">
-                        <textarea class="form-control" placeholder="Add comments..."></textarea>
-                        <button type="button" class="btn btn-success mt-2" onclick="approve('operator')">Approve</button>
-                    </div>
-                </div>
-
-                <!-- Environmental Officer -->
-                <div class="approver-section">
-                    <div class="approver-info">
-                        <div class="flex-grow-1">
-                            <label class="form-label">Environmental Officer</label>
-                            <div class="d-flex align-items-center">
-                                <input type="text" class="form-control" name="environmentalOfficer" value="Mike Johnson" readonly>
-                                <input type="email" class="form-control ms-2" name="environmentalOfficerEmail" value="mike.j@company.com" readonly>
-                                <i class="fas fa-edit edit-icon ms-2" onclick="editApprover('environmentalOfficer')"></i>
-                            </div>
-                        </div>
-                        <div class="approval-status status-pending">Pending</div>
-                    </div>
-                    <div class="signature-box" id="environmentalOfficerSignature" style="display: none;">
-                        <textarea class="form-control" placeholder="Add comments..."></textarea>
-                        <button type="button" class="btn btn-success mt-2" onclick="approve('environmentalOfficer')">Approve</button>
-                    </div>
-                </div>
-
-                <!-- Safety Officer -->
-                <div class="approver-section">
-                    <div class="approver-info">
-                        <div class="flex-grow-1">
-                            <label class="form-label">Safety Officer</label>
-                            <div class="d-flex align-items-center">
-                                <input type="text" class="form-control" name="safetyOfficer" value="Sarah Wilson" readonly>
-                                <input type="email" class="form-control ms-2" name="safetyOfficerEmail" value="sarah.w@company.com" readonly>
-                                <i class="fas fa-edit edit-icon ms-2" onclick="editApprover('safetyOfficer')"></i>
-                            </div>
-                        </div>
-                        <div class="approval-status status-pending">Pending</div>
-                    </div>
-                    <div class="signature-box" id="safetyOfficerSignature" style="display: none;">
-                        <textarea class="form-control" placeholder="Add comments..."></textarea>
-                        <button type="button" class="btn btn-success mt-2" onclick="approve('safetyOfficer')">Approve</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="text-center">
-                <button type="submit" class="btn btn-primary btn-lg">Submit Form</button>
-            </div>
-        </form>
+    <div id="main-content" class="container mt-4">
+        <div class="text-center">
+            <h1>Welcome to Sappi Product Review</h1>
+            <button onclick="signInWithGoogle()" class="btn btn-primary mt-4">
+                Sign in with Google
+            </button>
+        </div>
     </div>
-
-    <!-- Firebase App (the core Firebase SDK) -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-    <!-- Firebase Firestore -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 
     <script>
         // Initialize Firebase with your config
@@ -380,166 +44,34 @@
             apiKey: "AIzaSyCdSgohwFoiRjyiHntEVCnsZOof_wtuGck",
             authDomain: "stacks-companion-68225.firebaseapp.com",
             projectId: "stacks-companion-68225",
-            storageBucket: "stacks-companion-68225.firebasestorage.app",
-            messagingSenderId: "1011290604695",
-            appId: "1:1011290604695:web:461e7a9df4855fc81055d2"
+            storageBucket: "stacks-companion-68225.appspot.com",
+            messagingSenderId: "1039460737398",
+            appId: "1:1039460737398:web:d6c84fa4f4866d96a4c1f3"
         };
 
         // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-
-        // Get form ID and other params from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const formId = urlParams.get('id');
-        
-        // Update form with URL parameters
-        document.getElementById('companyName').value = urlParams.get('company') || '';
-        document.getElementById('productName').value = urlParams.get('product') || '';
-
-        // Function to edit approver information
-        function editApprover(approverType) {
-            const nameInput = document.querySelector(`input[name="${approverType}"]`);
-            const emailInput = document.querySelector(`input[name="${approverType}Email"]`);
-            
-            nameInput.readOnly = false;
-            emailInput.readOnly = false;
-            
-            nameInput.focus();
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
         }
 
-        // Function to handle approval
-        function approve(approverType) {
-            const signatureBox = document.getElementById(`${approverType}Signature`);
-            const statusBadge = signatureBox.previousElementSibling.querySelector('.approval-status');
-            const comments = signatureBox.querySelector('textarea').value;
-            
-            // Update status in UI
-            statusBadge.textContent = 'Approved';
-            statusBadge.classList.remove('status-pending');
-            statusBadge.classList.add('status-approved');
-            
-            // Save to Firestore
-            if (formId) {
-                db.collection('forms').doc(formId).update({
-                    [`approvals.${approverType}`]: {
-                        approved: true,
-                        comments: comments,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    }
-                });
-            }
-            
-            signatureBox.style.display = 'none';
-        }
-
-        // Handle initiate review button
-        document.getElementById('initiateReviewBtn').addEventListener('click', async () => {
-            if (!formId) return;
-
-            try {
-                // Update form status
-                await db.collection('forms').doc(formId).update({
-                    status: 'review_initiated',
-                    initiatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-
-                // Show all signature boxes
-                document.querySelectorAll('.signature-box').forEach(box => {
-                    box.style.display = 'block';
-                });
-
-                // Disable the initiate button
-                document.getElementById('initiateReviewBtn').disabled = true;
-
-                alert('Review process initiated. Emails will be sent to all approvers.');
-            } catch (error) {
-                console.error('Error initiating review:', error);
-                alert('Error initiating review process. Please try again.');
-            }
-        });
-
-        // Load existing form data
-        if (formId) {
-            db.collection('forms').doc(formId).get()
-                .then(doc => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        
-                        // Update status badge
-                        const status = document.getElementById('formStatus');
-                        status.innerHTML = data.status.toUpperCase();
-                        status.className = `status-badge status-${data.status}`;
-
-                        // Populate form fields
-                        Object.keys(data).forEach(key => {
-                            const element = document.querySelector(`[name="${key}"]`);
-                            if (element) {
-                                if (element.type === 'checkbox') {
-                                    element.checked = data[key];
-                                } else {
-                                    element.value = data[key];
-                                }
-                            }
-                        });
-
-                        // Update approvals if they exist
-                        if (data.approvals) {
-                            Object.keys(data.approvals).forEach(approverType => {
-                                const approval = data.approvals[approverType];
-                                if (approval.approved) {
-                                    const statusBadge = document.querySelector(`#${approverType}Signature`)
-                                        .previousElementSibling
-                                        .querySelector('.approval-status');
-                                    statusBadge.textContent = 'Approved';
-                                    statusBadge.classList.remove('status-pending');
-                                    statusBadge.classList.add('status-approved');
-                                }
-                            });
-                        }
-
-                        // Disable initiate button if review already started
-                        if (data.status === 'review_initiated') {
-                            document.getElementById('initiateReviewBtn').disabled = true;
-                            document.querySelectorAll('.signature-box').forEach(box => {
-                                box.style.display = 'block';
-                            });
-                        }
-                    }
+        function signInWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            firebase.auth().signInWithPopup(provider)
+                .then((result) => {
+                    console.log('Google Sign In successful');
+                    window.location.href = 'dashboard.html';
                 })
-                .catch(error => {
-                    console.error("Error getting form:", error);
+                .catch((error) => {
+                    console.error('Google Sign In error:', error);
+                    alert('Failed to sign in with Google: ' + error.message);
                 });
         }
 
-        // Handle form submission
-        document.getElementById('releaseForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const formValues = {};
-            formData.forEach((value, key) => {
-                formValues[key] = value;
-            });
-
-            try {
-                if (formId) {
-                    await db.collection('forms').doc(formId).update({
-                        ...formValues,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                } else {
-                    await db.collection('forms').add({
-                        ...formValues,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        status: 'pending'
-                    });
-                }
-
-                alert('Form saved successfully!');
-            } catch (error) {
-                console.error("Error saving form:", error);
-                alert('Error saving form. Please try again.');
+        // Add auth state listener
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                console.log('User is already signed in, redirecting to dashboard');
+                window.location.href = 'dashboard.html';
             }
         });
     </script>
