@@ -353,6 +353,12 @@
             const db = firebase.firestore();
             const auth = firebase.auth();
 
+            console.log('Firebase initialized:', {
+                apps: firebase.apps.length,
+                auth: !!firebase.auth(),
+                firestore: !!db
+            });
+
             // Add auth state listener
             auth.onAuthStateChanged((user) => {
                 console.log('Auth state changed:', user ? 'logged in' : 'logged out');
@@ -405,32 +411,34 @@
 
             // Render table row
             function renderTableRow(form) {
-                console.log('form.status', form.status)
+                console.log('Rendering row for form:', form.id);
                 const progress = calculateProgress(form);
-                const status = getStatus(form);
-                console.log('status', status)
                 return `
-                <tr>
-                    <td>${form.productName || 'Unnamed Product'}</td>
-                    <td>${form.department || 'N/A'}</td>
-                    <td><span class="status-badge status-${status}">${status}</span></td>
-                    <td>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${progress}%"></div>
-                        </div>
-                        ${progress.toFixed(0)}%
-                    </td>
-                    <td>${formatDate(form.approvedOn) || 'N/A'}</td>
-                    <td>
-                        <button class="action-button" onclick="viewForm('${form.id}')">View</button>
-                    </td>
-                </tr>
-            `;
+                    <tr>
+                        <td>${form.productName || 'Unnamed Product'}</td>
+                        <td>${form.department || 'N/A'}</td>
+                        <td><span class="status-badge status-${form.status}">${form.status}</span></td>
+                        <td>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            ${progress.toFixed(0)}%
+                        </td>
+                        <td>${formatDate(form.approvedOn)}</td>
+                        <td>
+                            <button class="action-button" onclick="viewForm('${form.id}'); return false;">View</button>
+                        </td>
+                    </tr>
+                `;
             }
 
-            // View form
+            // Update the viewForm function to navigate to the correct URL
             function viewForm(formId) {
-                window.location.href = `review-form.html?id=${formId}&admin=true`;
+                const form = allForms.find(f => f.id === formId);
+                if (!form) return;
+                
+                const url = `https://internal-review.web.app/?product=${encodeURIComponent(form.sheetName)}&company=${encodeURIComponent(form.companyName)}&id=${formId}`;
+                window.location.href = url;
             }
 
             // Update table
@@ -486,71 +494,77 @@
                 tableBody.innerHTML = '<tr><td colspan="6" class="loading">Loading forms...</td></tr>';
 
                 const user = firebase.auth().currentUser;
-                console.log('user', user)
+                console.log('Current user:', user?.email);
+
                 if (!user) {
-                    console.error('No authenticated user found');
+                    console.error('No authenticated user');
                     tableBody.innerHTML = '<tr><td colspan="6" class="loading">Please log in to view forms</td></tr>';
                     return;
                 }
 
-                try {
-                    const formsRef = db.collection('forms');
-
-                    const allFormsTest = formsRef.get().then((querySnapshot) => {
-                        querySnapshot.forEach((doc) => {
-                            console.log(doc.id, " => ", doc.data());
-                        });
-                    })
-
-                    // Add a real-time listener for forms
-                    formsRef
-                        .orderBy('approvedOn', 'desc')
-                        .onSnapshot((snapshot) => {
-                            console.log('Received snapshot with', snapshot.size, 'documents');
-
-                            if (snapshot.empty) {
-                                tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
-                                return;
-                            }
-
-                            allForms = snapshot.docs.map(doc => {
-                                const data = doc.data();
-                                const entity = {
-                                    id: doc.id,
-                                    ...data,
-                                    approvedOn: data.approvedOn ? new Date(data.approvedOn) : new Date(),
-                                    productName: data.sheetName || data.productName || data.product_name || 'Unnamed Product',
-                                    department: data.department || 'N/A',
-                                    reviewers: data.reviewers || [],
-                                    signatures: data.signatures || {},
-                                    status: data.status,
-                                };
-                                console.log('entity', entity)
-                                return entity
+                const formsRef = db.collection('forms');
+                
+                // Add real-time listener for forms
+                formsRef
+                    .orderBy('approvedOn', 'desc')
+                    .onSnapshot((snapshot) => {
+                        console.log('Received snapshot with', snapshot.size, 'documents');
+                        
+                        // Log each raw document
+                        snapshot.docs.forEach(doc => {
+                            console.log('Raw document data:', {
+                                id: doc.id,
+                                data: doc.data()
                             });
+                        });
 
-                            console.log('Processed forms:', allForms);
-                            filterForms();
-                        }, (error) => {
-                            console.error("Error loading forms:", error);
-                            tableBody.innerHTML = `
+                        if (snapshot.empty) {
+                            tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
+                            return;
+                        }
+
+                        allForms = snapshot.docs.map(doc => {
+                            const data = doc.data();
+                            const processed = {
+                                id: doc.id,
+                                ...data,
+                                approvedOn: data.approvedOn ? 
+                                    (typeof data.approvedOn === 'string' ? new Date(data.approvedOn) : data.approvedOn.toDate()) 
+                                    : new Date(),
+                                productName: data.sheetName || data.productName || data.product_name || data.companyName || 'Unnamed Product',
+                                department: data.department || data.companyName || 'N/A',
+                                reviewers: data.reviewers || [],
+                                signatures: data.signatures || {},
+                                status: data.status || 'pending'
+                            };
+                            
+                            // Log each processed document
+                            console.log('Processed document:', {
+                                id: doc.id,
+                                raw: data,
+                                processed: processed
+                            });
+                            
+                            return processed;
+                        });
+
+                        console.log('All processed forms:', allForms);
+                        filterForms();
+                    }, (error) => {
+                        console.error("Error loading forms:", error);
+                        console.error('Error details:', {
+                            code: error.code,
+                            message: error.message,
+                            stack: error.stack
+                        });
+                        tableBody.innerHTML = `
                             <tr>
                                 <td colspan="6" class="loading">
                                     Error loading forms: ${error.message}
                                 </td>
                             </tr>
                         `;
-                        });
-                } catch (error) {
-                    console.error('Error in loadForms:', error);
-                    tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="loading">
-                            Error initializing forms load: ${error.message}
-                        </td>
-                    </tr>
-                `;
-                }
+                    });
             }
 
             // Initialize the dashboard
