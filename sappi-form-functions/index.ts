@@ -1,11 +1,15 @@
-import { onRequest } from 'firebase-functions/v2/https';
-import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import * as sgMail from '@sendgrid/mail';
+import { MailService } from '@sendgrid/mail';
 import cors = require('cors');
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { onRequest } from 'firebase-functions/v2/https';
+import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { testSendGrid } from './test-sendgrid';
+
+// Initialize SendGrid
+const sgMail = new MailService();
 
 // Initialize Firebase Admin only if not already initialized
 if (getApps().length === 0) {
@@ -24,26 +28,24 @@ interface SheetRequest {
 }
 
 interface FormData {
-  companyName: string;
-  sheetName: string;
-  email: string;
-  status: 'pending' | 'in_review' | 'approved' | 'rejected';
-  department?: string;
   reviewers: {
-    qualityControl?: ReviewerSignOff;
-    safetyOfficer?: ReviewerSignOff;
-    productionManager?: ReviewerSignOff;
-    environmentalOfficer?: ReviewerSignOff;
+    [key: string]: {
+      email: string;
+    };
   };
-  createdAt: FieldValue;
-  updatedAt: FieldValue;
+  approvals?: {
+    [key: string]: {
+      status: string;
+    };
+  };
+  email?: string;
+  sheetName?: string;
+  companyName?: string;
+  status?: string;
 }
 
-interface ReviewerSignOff {
-    email: string;
-    status: 'pending' | 'approved' | 'rejected';
-    timestamp?: admin.firestore.Timestamp;
-    comments?: string;
+interface ReviewerApproval {
+  status: string;
 }
 
 // Field name normalization helper
@@ -75,6 +77,12 @@ const isTestEmail = (email: string): boolean => {
   return email.endsWith('@example.com') || 
          email.includes('+test@') ||
          email.endsWith('@mailinator.com');
+};
+
+// Add this configuration object
+const functionConfig = {
+    region: 'europe-west1',
+    secrets: ['SENDGRID_API_KEY']
 };
 
 // Main function
@@ -135,7 +143,6 @@ export const createFormFromSheet = onRequest({
         sheetName: productName,
         email: requesterEmail,
         status: 'pending',
-        department: requestData.department || 'Unassigned',
         reviewers: {},
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp()
@@ -239,9 +246,16 @@ export const createFormFromSheet = onRequest({
   }
 });
 
-export const sendReviewEmails = onDocumentUpdated('forms/{formId}', async (event) => {
+export const sendReviewEmails = onDocumentUpdated({
+    document: 'forms/{formId}',
+    region: 'europe-west1'
+}, async (event) => {
+    if (!event.data) return;
+    
     const newData = event.data.after.data();
     const previousData = event.data.before.data();
+    if (!newData || !previousData) return;
+    
     const formId = event.params.formId;
 
     // Get all reviewer roles that were just assigned (email changed from empty to a value)
@@ -315,9 +329,16 @@ export const sendReviewEmails = onDocumentUpdated('forms/{formId}', async (event
     }
 });
 
-export const updateFormStatus = onDocumentUpdated('forms/{formId}', async (event) => {
+export const updateFormStatus = onDocumentUpdated({
+    document: 'forms/{formId}',
+    region: 'europe-west1'
+}, async (event) => {
+    if (!event.data) return;
+    
     const newData = event.data.after.data();
     const previousData = event.data.before.data();
+    if (!newData || !previousData) return;
+    
     const formId = event.params.formId;
 
     // Get all reviewer statuses
@@ -418,22 +439,13 @@ export const updateFormStatus = onDocumentUpdated('forms/{formId}', async (event
 
 export const submitReviewDecision = onRequest({
     region: 'europe-west1',
-    maxInstances: 10,
-    cors: true
+    maxInstances: 1,
+    secrets: ['SENDGRID_API_KEY']
 }, async (request, response) => {
     try {
-        if (request.method !== 'POST') {
-            response.status(405).json({
-                success: false,
-                message: 'Method not allowed'
-            });
-            return;
-        }
+        const { formId, role, reviewerEmail, decision, comments } = request.body;
 
-        const { formId, role, decision, comments } = request.body;
-        const reviewerEmail = request.body.email;
-
-        if (!formId || !role || !decision || !reviewerEmail) {
+        if (!formId || !role || !reviewerEmail || !decision) {
             response.status(400).json({
                 success: false,
                 message: 'Missing required fields'
@@ -441,29 +453,10 @@ export const submitReviewDecision = onRequest({
             return;
         }
 
-        // Validate decision
-        if (!['approved', 'rejected'].includes(decision)) {
-            response.status(400).json({
-                success: false,
-                message: 'Invalid decision. Must be "approved" or "rejected"'
-            });
-            return;
-        }
-
-        // Validate role
-        const validRoles = ['qualityControl', 'safetyOfficer', 'productionManager', 'environmentalOfficer'];
-        if (!validRoles.includes(role)) {
-            response.status(400).json({
-                success: false,
-                message: 'Invalid role'
-            });
-            return;
-        }
-
         const db = getFirestore();
         const formRef = db.collection('forms').doc(formId);
         const formDoc = await formRef.get();
-
+        
         if (!formDoc.exists) {
             response.status(404).json({
                 success: false,
@@ -472,10 +465,10 @@ export const submitReviewDecision = onRequest({
             return;
         }
 
-        const formData = formDoc.data();
+        const formData = formDoc.data() as FormData;
         
         // Verify reviewer is assigned to this role
-        if (formData.reviewers[role]?.email !== reviewerEmail) {
+        if (!formData?.reviewers?.[role]?.email || formData.reviewers[role].email !== reviewerEmail) {
             response.status(403).json({
                 success: false,
                 message: 'You are not authorized to review this form in this role'
@@ -502,7 +495,7 @@ export const submitReviewDecision = onRequest({
         });
 
     } catch (error) {
-        console.error('Error processing review decision:', error);
+        console.error('Error submitting review decision:', error);
         response.status(500).json({
             success: false,
             message: 'Internal server error',
@@ -512,22 +505,36 @@ export const submitReviewDecision = onRequest({
 });
 
 // Add this new function to handle review notifications
-export const handleReviewNotifications = onDocumentUpdated('forms/{formId}', async (event) => {
-    const newData = event.data.after.data();
-    const previousData = event.data.before.data();
+export const handleReviewNotifications = onDocumentUpdated({
+    document: 'forms/{formId}',
+    region: 'europe-west1'
+}, async (event) => {
+    if (!event.data) {
+        console.error('No event data available');
+        return;
+    }
+
+    const newData = event.data.after.data() as FormData | undefined;
+    const previousData = event.data.before.data() as FormData | undefined;
+    
+    if (!newData || !previousData) {
+        console.error('Missing data in event');
+        return;
+    }
+
     const formId = event.params.formId;
 
     // Check if review was just initiated
     if (newData.status === 'review_initiated' && previousData.status !== 'review_initiated') {
         // Send emails to all reviewers
         const reviewers = newData.reviewers;
-        for (const [role, email] of Object.entries(reviewers)) {
-            if (!email) continue;
+        for (const [role, reviewer] of Object.entries(reviewers)) {
+            if (!reviewer.email) continue;
 
             const emailContent = {
-                to: email,
+                to: reviewer.email,
                 from: FROM_EMAIL,
-                subject: `Review Required: ${newData.sheetName}`,
+                subject: `Review Required: ${newData.sheetName || ''}`,
                 html: `
                     <!DOCTYPE html>
                     <html>
@@ -536,8 +543,8 @@ export const handleReviewNotifications = onDocumentUpdated('forms/{formId}', asy
                           <h2 style="color: #2c3e50;">Review Required</h2>
                           <p>You have been assigned as the ${role} reviewer for:</p>
                           <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
-                            <p style="margin: 5px 0;"><strong>Product:</strong> ${newData.sheetName}</p>
-                            <p style="margin: 5px 0;"><strong>Company:</strong> ${newData.companyName}</p>
+                            <p style="margin: 5px 0;"><strong>Product:</strong> ${newData.sheetName || ''}</p>
+                            <p style="margin: 5px 0;"><strong>Company:</strong> ${newData.companyName || ''}</p>
                           </div>
                           <p>Please review and approve or reject this form.</p>
                           <div style="text-align: center; margin: 25px 0;">
@@ -559,13 +566,13 @@ export const handleReviewNotifications = onDocumentUpdated('forms/{formId}', asy
 
             try {
                 await sgMail.send(emailContent);
-                console.log(`Review notification sent to ${role} (${email})`);
+                console.log(`Review notification sent to ${role} (${reviewer.email})`);
             } catch (error) {
                 console.error(`Error sending email to ${role}:`, error);
                 // Fallback to Firebase Email Extension
                 const db = getFirestore();
                 await db.collection('mail').add({
-                    to: email,
+                    to: reviewer.email,
                     message: {
                         subject: emailContent.subject,
                         html: emailContent.html
@@ -578,10 +585,10 @@ export const handleReviewNotifications = onDocumentUpdated('forms/{formId}', asy
     // Check for approval status changes
     if (newData.approvals) {
         const newApprovals = Object.entries(newData.approvals)
-            .filter(([_, approval]) => approval.status === 'approved')
+            .filter(([_, approval]: [string, ReviewerApproval]) => approval.status === 'approved')
             .length;
         const previousApprovals = Object.entries(previousData.approvals || {})
-            .filter(([_, approval]) => approval.status === 'approved')
+            .filter(([_, approval]: [string, ReviewerApproval]) => approval.status === 'approved')
             .length;
 
         // If all reviewers have approved, send notification to form creator
@@ -637,50 +644,5 @@ export const handleReviewNotifications = onDocumentUpdated('forms/{formId}', asy
     }
 });
 
-// Add this test function
-export const testSendGrid = onRequest({
-    region: 'europe-west1',
-    maxInstances: 1,
-    secrets: ['SENDGRID_API_KEY']
-}, async (request, response) => {
-    try {
-        // Get SendGrid key and verify it exists
-        const sendGridKey = process.env.SENDGRID_API_KEY;
-        console.log('SendGrid key exists:', !!sendGridKey);
-        console.log('SendGrid key starts with SG.:', sendGridKey?.startsWith('SG.'));
-
-        if (!sendGridKey?.startsWith('SG.')) {
-            throw new Error('Invalid SendGrid API key configuration');
-        }
-
-        // Initialize SendGrid
-        sgMail.setApiKey(sendGridKey);
-
-        // Send test email
-        const testEmail = {
-            to: 'smkaufman+1@gmail.com',
-            from: FROM_EMAIL,
-            subject: 'SendGrid Test Email',
-            html: `
-                <h1>SendGrid Configuration Test</h1>
-                <p>If you receive this email, your SendGrid configuration is working correctly.</p>
-                <p>Timestamp: ${new Date().toISOString()}</p>
-            `
-        };
-
-        await sgMail.send(testEmail);
-        
-        response.status(200).json({
-            success: true,
-            message: 'Test email sent successfully'
-        });
-
-    } catch (error) {
-        console.error('SendGrid test error:', error);
-        response.status(500).json({
-            success: false,
-            message: 'SendGrid test failed',
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-    }
-});
+// Export the testSendGrid function
+export { testSendGrid };
