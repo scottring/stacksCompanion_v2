@@ -6,9 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sappi Review Dashboard</title>
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <!-- Router -->
+    <script src="/js/router.js"></script>
     <style>
         :root {
             --primary-color: #005B97;
@@ -278,65 +280,72 @@
 <body>
     <div class="nav-bar">
         <div class="nav-content">
-            <a href="dashboard.html" class="nav-logo">Sappi Review</a>
+            <a href="#" onclick="router.navigate('/dashboard'); return false;" class="nav-logo">Sappi Review</a>
             <div class="nav-links">
-                <a href="dashboard.html" class="nav-link active">Dashboard</a>
-                <a href="create-form.html" class="nav-link">Create New Form</a>
+                <a href="#" onclick="router.navigate('/dashboard'); return false;" class="nav-link active">Dashboard</a>
+                <a href="#" onclick="router.navigate('/create-form'); return false;" class="nav-link">Create New Form</a>
             </div>
             <div class="nav-user">
                 <span id="userEmail"></span>
-                <button class="nav-button" onclick="signOut()">Sign Out</button>
+                <button class="nav-button" onclick="handleSignOut()">Sign Out</button>
             </div>
         </div>
     </div>
 
-    <div class="header">
-        <h1>Sappi Review Dashboard</h1>
-    </div>
-
-    <div class="controls">
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Search by product name or department...">
-        </div>
-        <div class="filter-controls">
-            <select id="statusFilter">
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="in-progress">In Progress</option>
-                <option value="completed">Completed</option>
-            </select>
-            <select id="sortBy">
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="product">Product Name</option>
-            </select>
+    <div id="loadingState" style="display: none;">
+        <div style="text-align: center; padding: 20px;">
+            <p>Loading...</p>
         </div>
     </div>
 
-    <div class="dashboard-table">
-        <table>
-            <thead>
-                <tr>
-                    <th>Product Name</th>
-                    <th>Department</th>
-                    <th>Status</th>
-                    <th>Progress</th>
+    <div id="mainContent" style="display: none;">
+        <div class="header">
+            <h1>Sappi Review Dashboard</h1>
+        </div>
 
-                    <th>Created Date</th>
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search by product name or department...">
+            </div>
+            <div class="filter-controls">
+                <select id="statusFilter">
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                </select>
+                <select id="sortBy">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="product">Product Name</option>
+                </select>
+            </div>
+        </div>
 
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="formsTableBody">
-                <tr>
-                    <td colspan="6" class="loading">Loading forms...</td>
-                </tr>
-            </tbody>
-        </table>
+        <div class="dashboard-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Progress</th>
+
+                        <th>Created Date</th>
+
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="formsTableBody">
+                    <tr>
+                        <td colspan="6" class="loading">Loading forms...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
-        console.log('abc')
         // Initialize Firebase with your config
         const firebaseConfig = {
             apiKey: "AIzaSyCdSgohwFoiRjyiHntEVCnsZOof_wtuGck",
@@ -347,204 +356,95 @@
             appId: "1:1039460737398:web:d6c84fa4f4866d96a4c1f3"
         };
 
+        // Show loading state
+        document.getElementById('loadingState').style.display = 'block';
+
         try {
             console.log('Initializing Firebase...');
-            firebase.initializeApp(firebaseConfig);
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
             console.log('Firebase initialized successfully');
 
             const db = firebase.firestore();
             const auth = firebase.auth();
 
-            // Test Firebase connection
+            // Handle sign out
+            window.handleSignOut = async function() {
+                try {
+                    await auth.signOut();
+                    router.navigate('/');
+                } catch (error) {
+                    console.error('Sign out error:', error);
+                    alert('Error signing out: ' + error.message);
+                }
+            };
+
+            // Authentication state observer
+            let authInitialized = false;
             auth.onAuthStateChanged((user) => {
                 console.log('Auth state changed:', user ? 'logged in' : 'logged out');
+                
+                // Hide loading state
+                document.getElementById('loadingState').style.display = 'none';
+                
                 if (user) {
                     console.log('User authenticated:', user.email);
                     document.getElementById('userEmail').textContent = user.email;
-                    loadForms();
+                    document.getElementById('mainContent').style.display = 'block';
+                    if (!authInitialized) {
+                        loadForms();
+                        authInitialized = true;
+                    }
                 } else {
                     console.log('No user authenticated, redirecting to login');
-                    window.location.href = 'index.html';
+                    router.navigate('/');
                 }
-            }, (error) => {
-                console.error('Auth state change error:', error);
             });
-            // State management
-            let allForms = [];
-            let filteredForms = [];
 
-            // Format date
-            function formatDate(timestamp) {
-                if (!timestamp) return 'N/A';
-                const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
-                return new Intl.DateTimeFormat('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                }).format(date);
-            }
-
-            // Calculate progress
-            function calculateProgress(form) {
-                if (!form.reviewers) return 0;
-                const totalReviewers = form.reviewers.length;
-                const completedReviews = form.signatures ? Object.keys(form.signatures).length : 0;
-                return (completedReviews / totalReviewers) * 100;
-            }
-
-            // Get status based on progress
-            function getStatus(form) {
-                const progress = calculateProgress(form);
-                if (progress === 0) return 'pending';
-                if (progress === 100) return 'completed';
-                return 'in-progress';
-            }
-
-            // Render table row
-            function renderTableRow(form) {
-                const progress = calculateProgress(form);
-                const status = getStatus(form);
-                return `
-                <tr>
-                    <td>${form.sheetName || 'Unnamed Product'}</td>
-                    <td>${form.department || 'N/A'}</td>
-                    <td><span class="status-badge status-${status}">${status}</span></td>
-                    <td>
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: ${progress}%"></div>
-                        </div>
-                        ${progress.toFixed(0)}%
-                    </td>
-                    <td>${formatDate(form.createdAt) || 'N/A'}</td>
-                    <td>
-                        <button class="action-button" onclick="viewForm('${form.id}')">View</button>
-                    </td>
-                </tr>
-            `;
-            }
-
-            // View form
-            function viewForm(formId) {
-                window.location.href = `review-form.html?id=${formId}&admin=true`;
-            }
-
-            // Update table
-            function updateTable() {
-                const tableBody = document.getElementById('formsTableBody');
-                if (filteredForms.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
-                    return;
-                }
-
-                tableBody.innerHTML = filteredForms.map(renderTableRow).join('');
-            }
-
-            // Filter forms
-            function filterForms() {
-                const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-                const statusFilter = document.getElementById('statusFilter').value;
-                const sortBy = document.getElementById('sortBy').value;
-
-                filteredForms = allForms.filter(form => {
-                    const matchesSearch = (form.productName || '').toLowerCase().includes(searchTerm) ||
-                        (form.department || '').toLowerCase().includes(searchTerm);
-                    const matchesStatus = statusFilter === 'all' || getStatus(form) === statusFilter;
-                    return matchesSearch && matchesStatus;
-                });
-
-                // Sort forms
-                filteredForms.sort((a, b) => {
-                    switch (sortBy) {
-                        case 'newest':
-                            return (b.createdAt || 0) - (a.createdAt || 0);
-                        case 'oldest':
-                            return (a.createdAt || 0) - (b.createdAt || 0);
-                        case 'product':
-                            return (a.productName || '').localeCompare(b.productName || '');
-                        default:
-                            return 0;
-                    }
-                });
-
-                updateTable();
-            }
-
-            // Event listeners
-            document.getElementById('searchInput').addEventListener('input', filterForms);
-            document.getElementById('statusFilter').addEventListener('change', filterForms);
-            document.getElementById('sortBy').addEventListener('change', filterForms);
-
-            // Load forms from Firestore
-            function loadForms() {
-                console.log('Loading forms...');
-                const tableBody = document.getElementById('formsTableBody');
-                tableBody.innerHTML = '<tr><td colspan="6" class="loading">Loading forms...</td></tr>';
-
+            // Function to load forms
+            async function loadForms() {
                 try {
-                    const formsRef = db.collection('forms');
-                    formsRef
-                        .orderBy('approvedOn', 'desc')
-                        .onSnapshot((snapshot) => {
-                            console.log('Received snapshot with', snapshot.docs.length, 'documents');
-                            if (snapshot.empty) {
-                                console.log('No documents found in forms collection');
-                                tableBody.innerHTML = '<tr><td colspan="6" class="loading">No forms found</td></tr>';
-                                return;
-                            }
+                    const formsSnapshot = await db.collection('forms').get();
+                    const formsTableBody = document.getElementById('formsTableBody');
+                    
+                    if (formsSnapshot.empty) {
+                        formsTableBody.innerHTML = '<tr><td colspan="6">No forms found</td></tr>';
+                        return;
+                    }
 
-                            allForms = snapshot.docs.map(doc => {
-                                const data = doc.data();
-                                console.log('Document ID:', doc.id, 'Data:', data);
-                                
-                                // Convert approvedOn string to Date if it exists
-                                let createdDate = null;
-                                if (data.approvedOn) {
-                                    createdDate = new Date(data.approvedOn);
-                                } else if (data.createdAt?.toDate) {
-                                    createdDate = data.createdAt.toDate();
-                                }
+                    const formsHtml = formsSnapshot.docs.map(doc => {
+                        const data = doc.data();
+                        return `
+                            <tr>
+                                <td>${data.companyName || ''}</td>
+                                <td>${data.sheetName || ''}</td>
+                                <td>${data.status || 'Pending'}</td>
+                                <td>${data.createdAt ? new Date(data.createdAt.toDate()).toLocaleDateString() : ''}</td>
+                                <td>
+                                    <button onclick="viewForm('${doc.id}')" class="btn btn-primary btn-sm">View</button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
 
-                                return {
-                                    id: doc.id,
-                                    ...data,
-                                    createdAt: createdDate,
-                                    productName: data.sheetName || data.productName || data.product_name || 'Unnamed Product',
-                                    department: data.companyName || data.department || 'N/A',
-                                    reviewers: data.reviewers || [],
-                                    signatures: data.signatures || {}
-                                };
-                            });
-                            console.log('Processed forms:', allForms);
-                            filterForms();
-                        }, (error) => {
-                            console.error("Error loading forms:", error);
-                            tableBody.innerHTML = `
-                                <tr>
-                                    <td colspan="6" class="loading">
-                                        Error loading forms: ${error.message}
-                                    </td>
-                                </tr>
-                            `;
-                        });
+                    formsTableBody.innerHTML = formsHtml;
                 } catch (error) {
-                    console.error('Error in loadForms:', error);
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="6" class="loading">
-                                Error initializing forms load: ${error.message}
-                            </td>
-                        </tr>
-                    `;
+                    console.error('Error loading forms:', error);
+                    document.getElementById('formsTableBody').innerHTML = 
+                        '<tr><td colspan="6">Error loading forms</td></tr>';
                 }
             }
 
-            // Initialize the dashboard
-            loadForms();
+            // Function to view a form
+            window.viewForm = function(formId) {
+                window.location.href = `/review-form.html?id=${formId}`;
+            }
+
         } catch (error) {
-            console.error('Firebase initialization error:', error);
-        } 
+            console.error('Error initializing Firebase:', error);
+            alert('Error initializing application: ' + error.message);
+        }
     </script>
 </body>
 

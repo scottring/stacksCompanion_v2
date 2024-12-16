@@ -53,6 +53,7 @@ const admin = __importStar(require("firebase-admin"));
 const { initializeApp, getApps } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { testSendGrid } = require('./test-sendgrid');
+const { testReviewerEmails } = require('./test-reviewer-emails');
 
 // Initialize Firebase Admin only if not already initialized
 if (getApps().length === 0) {
@@ -632,3 +633,4 @@ exports.handleReviewNotifications = (0, firestore_1.onDocumentUpdated)({
 }));
 // Add this test function
 exports.testSendGrid = testSendGrid;
+exports.testReviewerEmails = testReviewerEmails;
